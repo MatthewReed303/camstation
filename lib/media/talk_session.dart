@@ -22,8 +22,11 @@ class TalkSession {
 
   bool get active => _pc != null;
 
+  bool _cancelled = false;
+
   Future<void> start() async {
     if (_pc != null) return;
+    _cancelled = false;
     final mic = await navigator.mediaDevices.getUserMedia({
       'audio': {
         'echoCancellation': true,
@@ -33,10 +36,20 @@ class TalkSession {
       'video': false,
     });
     _mic = mic;
-    final pc = await createPeerConnection({
-      'sdpSemantics': 'unified-plan',
-      'iceServers': <Object>[],
-    });
+    if (_cancelled) {
+      await stop();
+      return;
+    }
+    final RTCPeerConnection pc;
+    try {
+      pc = await createPeerConnection({
+        'sdpSemantics': 'unified-plan',
+        'iceServers': <Object>[],
+      });
+    } on Object {
+      await stop();
+      rethrow;
+    }
     _pc = pc;
     try {
       await pc.addTransceiver(
@@ -73,6 +86,7 @@ class TalkSession {
   }
 
   Future<void> stop() async {
+    _cancelled = true;
     final pc = _pc;
     final mic = _mic;
     _pc = null;

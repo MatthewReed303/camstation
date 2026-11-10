@@ -59,6 +59,7 @@ class EngineManager {
   int _restartAttempt = 0;
   Timer? _restartTimer;
   Completer<void>? _starting;
+  Future<void>? _stopFuture;
 
   /// Streams we want to exist: name → sources. Re-applied after restarts.
   final _streams = <String, List<String>>{};
@@ -70,7 +71,13 @@ class EngineManager {
   File get _pidFile => File('${runtimeDir.path}/go2rtc.pid');
 
   /// Starts the engine if needed and completes when it is healthy.
-  Future<void> ensureStarted() {
+  Future<void> ensureStarted() async {
+    final stopping = _stopFuture;
+    if (stopping != null) await stopping;
+    return _ensureStarted();
+  }
+
+  Future<void> _ensureStarted() {
     if (_state.value.isReady) return Future.value();
     final inflight = _starting;
     if (inflight != null) return inflight.future;
@@ -125,14 +132,17 @@ class EngineManager {
       _api = api;
       _settings = s;
       _restartAttempt = 0;
-      _set(EngineStage.running, version: version);
-
+      // Streams first: players reconnect as soon as we report "running".
       for (final e in _streams.entries) {
         await api.putStream(e.key, e.value);
       }
+      _set(EngineStage.running, version: version);
     } on Object catch (e) {
       _set(EngineStage.failed, error: Redactor.redact('$e'));
       await _killProcess();
+      // Keep trying in the background (e.g. a failed start right after the
+      // phone woke up); stop() cancels this.
+      if (!_stopping) _scheduleRestart();
       rethrow;
     }
   }
@@ -205,6 +215,9 @@ class EngineManager {
     await api.putStream(name, sources);
   }
 
+  /// Whether a stream is registered (and re-applied after restarts).
+  bool hasStream(String name) => _streams.containsKey(name);
+
   Future<void> removeStream(String name) async {
     _streams.remove(name);
     if (_state.value.isReady) await api.deleteStream(name);
@@ -215,6 +228,11 @@ class EngineManager {
   Future<void> stop() async {
     _stopping = true;
     _restartTimer?.cancel();
+    // Not "running" from here on, so an ensureStarted() during the stop
+    // waits for it and starts a fresh engine instead of returning early.
+    _set(EngineStage.stopped);
+    final stopping = Completer<void>();
+    _stopFuture = stopping.future;
     final pending = _starting;
     if (pending != null) {
       await pending.future.catchError((_) {});
@@ -227,6 +245,8 @@ class EngineManager {
     if (pw != null) Redactor.removeSecret(pw);
     _settings = null;
     _set(EngineStage.stopped);
+    stopping.complete();
+    _stopFuture = null;
   }
 
   Future<void> _killProcess() async {

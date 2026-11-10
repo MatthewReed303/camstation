@@ -95,7 +95,18 @@ class CameraPlayer {
     return _connect(attempt: 0);
   }
 
+  /// Never throws: any failure becomes a scheduled retry, so a player can't
+  /// get stuck in "reconnecting" because one step blew up.
   Future<void> _connect({required int attempt}) async {
+    final gen = _generation + 1;
+    try {
+      await _connectOnce(attempt: attempt);
+    } on Object catch (e) {
+      if (gen == _generation && !_disposed) _scheduleRetry(attempt + 1, e);
+    }
+  }
+
+  Future<void> _connectOnce({required int attempt}) async {
     final gen = ++_generation;
     _retry?.cancel();
     _watchdog?.stop();

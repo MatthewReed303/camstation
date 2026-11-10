@@ -60,8 +60,8 @@ class CamerasNotifier extends AsyncNotifier<List<Camera>> {
     }
     await _store.save(list);
     state = AsyncData(list);
-    // Drop engine streams so the next view uses the new settings.
-    await ref.read(streamRegistryProvider).forget(cam.id);
+    // Open views keep working, now with the new settings.
+    await ref.read(streamRegistryProvider).refresh(cam);
   }
 
   /// Moves a camera in the list (also the grid order). No stream changes.
@@ -113,6 +113,29 @@ class StreamRegistry {
     final name = talkName(cam);
     await _engine.setStream(name, sources);
     return name;
+  }
+
+  /// The camera's settings changed: re-register any of its streams that
+  /// are in use with fresh sources (open players reconnect to the same
+  /// name), drop the talk stream and cached codecs.
+  Future<void> refresh(Camera cam) async {
+    final pw = await ref.read(camerasProvider.notifier).password(cam.id);
+    for (final q in StreamQuality.values) {
+      final name = mediaName(cam, q);
+      CameraPlayer.forgetCodecs(name);
+      if (_engine.hasStream(name)) {
+        try {
+          await _engine.setStream(name, StreamSources.media(cam, pw, q));
+        } on Object {
+          // engine down: re-applied with the new sources on restart anyway
+        }
+      }
+    }
+    try {
+      await _engine.removeStream(talkName(cam));
+    } on Object {
+      // not registered
+    }
   }
 
   Future<void> forget(String cameraId) async {

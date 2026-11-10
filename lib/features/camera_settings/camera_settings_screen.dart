@@ -231,7 +231,7 @@ class _CameraSettingsScreenState extends ConsumerState<CameraSettingsScreen> {
       final restart = await _control!.setEncoder(c);
       _encoders = await _control!.encoders();
       // Engine streams and cached codecs are stale now.
-      await ref.read(streamRegistryProvider).forget(_cam!.id);
+      await ref.read(streamRegistryProvider).refresh(_cam!);
       if (mounted) setState(() {});
       if (restart && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

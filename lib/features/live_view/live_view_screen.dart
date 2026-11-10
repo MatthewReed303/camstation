@@ -43,6 +43,13 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
   void initState() {
     super.initState();
     ScreenAwake.watching(on: true);
+    _openViews++;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(_applyOrientation());
+      unawaited(_fullscreen ? _immersive() : _normalUi());
+      if (_fullscreen) _showControls();
+    });
     _cam = ref.read(camerasProvider.notifier).byId(widget.cameraId);
     final cam = _cam;
     if (cam != null) {
@@ -77,6 +84,7 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
 
   void _onPlayerState() {
     if (_player.state.value.status == PlayerStatus.playing) {
+      if (_error != null && mounted) setState(() => _error = null);
       _thumbs.onPlaying();
     } else {
       _thumbs.onStopped();
@@ -162,6 +170,10 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
       _talk = t;
       try {
         await t.start();
+        if (!_talking) {
+          await t.stop(); // released while connecting: free mic + camera
+          return;
+        }
       } on Object catch (e) {
         // The camera's talk channel can be briefly busy (e.g. a previous
         // session still closing): retry once before giving up.
@@ -170,8 +182,8 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
         await Future<void>.delayed(const Duration(milliseconds: 1500));
         if (!_talking) return;
         await t.start();
+        if (!_talking) await t.stop();
       }
-      if (!_talking) await _talkStop(); // released while connecting
     } on Object catch (e) {
       AppLog.add('talk', 'failed: $e');
       final denied = '$e'.toLowerCase().contains('permission');
@@ -209,10 +221,48 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
   Future<void> _toggleFullscreen() async {
     setState(() => _fullscreen = !_fullscreen);
     _remember((v) => v.copyWith(fullscreen: _fullscreen));
-    await SystemChrome.setEnabledSystemUIMode(
-      _fullscreen ? SystemUiMode.immersiveSticky : SystemUiMode.edgeToEdge,
-    );
+    _showControls(); // never leave a bare video with no way out
+    await (_fullscreen ? _immersive() : _normalUi());
   }
+
+  Timer? _hideControls;
+
+  /// Full screen: show the controls (incl. ✕) and hide them again after a
+  /// few seconds. Outside full screen they are always shown.
+  void _showControls() {
+    _hideControls?.cancel();
+    if (!mounted) return;
+    setState(() => _controlsVisible = true);
+    if (!_fullscreen) return;
+    _hideControls = Timer(const Duration(seconds: 4), () {
+      if (mounted && _fullscreen) setState(() => _controlsVisible = false);
+    });
+  }
+
+  void _onVideoTap() {
+    if (!_fullscreen) return;
+    if (_controlsVisible) {
+      _hideControls?.cancel();
+      setState(() => _controlsVisible = false);
+    } else {
+      _showControls();
+    }
+  }
+
+  static Future<void> _immersive() =>
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+
+  /// Bars back. `manual` with all overlays also works below Android 10,
+  /// where edgeToEdge is ignored.
+  static Future<void> _normalUi() => SystemChrome.setEnabledSystemUIMode(
+    SystemUiMode.manual,
+    overlays: SystemUiOverlay.values,
+  );
+
+  /// Live views open: swiping between cameras replaces one live view with
+  /// another, and the old one's dispose runs after the new one's initState,
+  /// so only the last one to close restores rotation and system bars.
+  static int _openViews = 0;
 
   ViewOrientation _orientation = ViewOrientation.auto;
   static bool get _rotatable => Platform.isAndroid || Platform.isIOS;
@@ -244,11 +294,15 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
     unawaited(_player.dispose());
     unawaited(_talk?.stop());
     ScreenAwake.watching(on: false);
-    if (_fullscreen) {
-      unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge));
+    _hideControls?.cancel();
+    _openViews--;
+    if (_openViews == 0) {
+      // Back to normal bars and rotation for the rest of the app.
+      unawaited(_normalUi());
+      if (_rotatable) {
+        unawaited(SystemChrome.setPreferredOrientations(const []));
+      }
     }
-    // Back to normal rotation for the rest of the app.
-    if (_rotatable) unawaited(SystemChrome.setPreferredOrientations(const []));
     super.dispose();
   }
 
@@ -262,7 +316,7 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
       );
     }
     final video = GestureDetector(
-      onTap: () => setState(() => _controlsVisible = !_controlsVisible),
+      onTap: _onVideoTap,
       onDoubleTap: _toggleFullscreen,
       child: ColoredBox(
         color: Colors.black,
