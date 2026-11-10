@@ -10,6 +10,7 @@ import 'package:camstation/features/live_view/player_status_overlay.dart';
 import 'package:camstation/features/live_view/thumbnails.dart';
 import 'package:camstation/media/camera_player.dart';
 import 'package:camstation/media/talk_session.dart';
+import 'package:camstation/media/webrtc_player.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -166,7 +167,9 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
     if (cam == null || _talking) return;
     // The microphone permission prompt comes from getUserMedia itself.
     unawaited(HapticFeedback.mediumImpact());
+    _talkPressed = DateTime.now();
     setState(() => _talking = true);
+    unawaited(_player.duck(on: true));
     try {
       final name = await ref.read(streamRegistryProvider).talk(cam);
       if (name == null) throw StateError('camera has no talk channel');
@@ -202,6 +205,7 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
                   'Close it there and try again.'
             : 'Talk failed: $e',
       );
+      _talkPressed = null; // a failure, not a short tap
       await _talkStop();
     }
   }
@@ -212,11 +216,21 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
     return m.contains('OPTalk') && m.contains('503');
   }
 
+  DateTime? _talkPressed;
+
   Future<void> _talkStop() async {
     final t = _talk;
     _talk = null;
+    final pressed = _talkPressed;
+    _talkPressed = null;
+    if (pressed != null &&
+        DateTime.now().difference(pressed) <
+            const Duration(milliseconds: 400)) {
+      _toast('Press and hold the microphone to talk');
+    }
     if (mounted) setState(() => _talking = false);
     await t?.stop();
+    if (mounted) await _player.duck(on: false);
   }
 
   void _toast(String msg) {
@@ -432,17 +446,12 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
               ],
             );
           }
-          // Phone held upright: 16:9 video on top, tidy controls, and a big
-          // talk button in the space that's left.
+          // Phone held upright: 16:9 video on top, controls underneath.
           return Column(
             children: [
               AspectRatio(aspectRatio: 16 / 9, child: video),
               _controlsPortrait(cam),
-              Expanded(
-                child: cam.supportsTalk
-                    ? Center(child: _talkButton(large: true))
-                    : const SizedBox.shrink(),
-              ),
+              const Spacer(),
             ],
           );
         },
@@ -480,8 +489,15 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
     },
   );
 
+  /// 0–200%: the middle is the camera's own level, above it boosts quiet
+  /// cameras.
+  static const _maxVolume = WebRtcPlayer.maxVolume;
+
   Widget get _volumeSlider => Slider(
-    value: _player.volume,
+    value: _player.volume.clamp(0, _maxVolume),
+    max: _maxVolume,
+    divisions: (_maxVolume * 20).round(),
+    label: '${(_player.volume * 100).round()}%',
     onChanged: (v) {
       unawaited(_player.setVolume(v));
       setState(() {});
@@ -511,45 +527,29 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
     onPressed: _toggleFullscreen,
   );
 
-  Widget _talkButton({bool large = false}) {
-    final talking = _talking;
-    final child = large
-        ? Container(
-            width: 112,
-            height: 112,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: talking
-                  ? Colors.red.shade400
-                  : Theme.of(context).colorScheme.secondaryContainer,
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.mic, size: 40, color: talking ? Colors.white : null),
-                Text(
-                  talking ? 'Talking…' : 'Hold to talk',
-                  style: TextStyle(color: talking ? Colors.white : null),
-                ),
-              ],
-            ),
-          )
-        : FilledButton.tonalIcon(
-            onPressed: () {},
-            style: talking
-                ? FilledButton.styleFrom(backgroundColor: Colors.red.shade300)
-                : null,
-            icon: const Icon(Icons.mic),
-            label: const Text('Hold to talk'),
-          );
+  /// Push-to-talk: a mic icon like the other controls. Hold it to talk;
+  /// it turns red while the camera hears you. (No tooltip: on phones a
+  /// tooltip pops up on long-press, i.e. every time you talk.)
+  Widget get _talkButton {
     return Semantics(
       button: true,
-      label: 'Hold to talk',
+      label: _talking ? 'Talking' : 'Hold to talk',
       child: Listener(
         onPointerDown: (_) => _talkStart(),
         onPointerUp: (_) => _talkStop(),
         onPointerCancel: (_) => _talkStop(),
-        child: child,
+        child: IconButton.filledTonal(
+          key: const ValueKey('talk'),
+          onPressed: () {}, // the Listener does the work; keeps it enabled
+          // Idle colours come from the nearest theme (dark in full screen).
+          style: _talking
+              ? IconButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                )
+              : null,
+          icon: Icon(_talking ? Icons.mic : Icons.mic_none),
+        ),
       ),
     );
   }
@@ -570,7 +570,7 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
           _snapshotButton,
           _fullscreenButton,
           if (_rotatable) _rotateButton,
-          if (cam.supportsTalk) _talkButton(),
+          if (cam.supportsTalk) _talkButton,
         ],
       ),
     ),
@@ -594,6 +594,8 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
             _snapshotButton,
             _fullscreenButton,
             if (_rotatable) _rotateButton,
+            const Spacer(),
+            if (cam.supportsTalk) _talkButton,
           ],
         ),
       ],

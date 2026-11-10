@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:camstation/app/app.dart';
 import 'package:camstation/app/providers.dart';
 import 'package:camstation/media/rtsp_player.dart';
+import 'package:camstation/media/webrtc_player.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,6 +13,7 @@ import 'package:path_provider/path_provider.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   RtspPlayer.registerBackend();
+  await WebRtcPlayer.configureAudio();
   _registerThirdPartyLicences();
   final dir = await getApplicationSupportDirectory();
   final container = ProviderContainer(

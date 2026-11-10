@@ -15,6 +15,7 @@ import 'package:camstation/app/providers.dart';
 import 'package:camstation/core/cameras/camera_repository.dart';
 import 'package:camstation/core/engine/engine_manager.dart';
 import 'package:camstation/media/rtsp_player.dart';
+import 'package:camstation/media/webrtc_player.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -39,6 +40,7 @@ void main() {
 
   testWidgets('demo journey', (tester) async {
     RtspPlayer.registerBackend();
+    await WebRtcPlayer.configureAudio(); // as main() does
     await out.create(recursive: true);
     tester.view.physicalSize = const Size(1080, 2340);
     tester.view.devicePixelRatio = 2.75;
@@ -129,11 +131,22 @@ void main() {
     await addDemoCamera('Driveway');
     await settle(1000);
     await shot('list');
+    // The demo stream has no talk channel; flag one so the mic control is
+    // on screen (it is not pressed).
+    final front = container
+        .read(camerasProvider)
+        .value!
+        .firstWhere((c) => c.name == 'Front door');
+    await container
+        .read(camerasProvider.notifier)
+        .save(front.copyWith(supportsTalk: true));
+    await settle(300);
 
     // 3. Live view; full screen; the ✕ hides with the controls and returns.
     await tap(find.text('Front door'), 5000);
     await shot('live');
     expect(find.byTooltip('Close'), findsWidgets);
+    expect(find.byKey(const ValueKey('talk')), findsOneWidget);
     await tap(find.byTooltip('Full screen'), 1200);
     expect(find.byTooltip('Close'), findsOneWidget, reason: '✕ on entry');
     await shot('fullscreen_controls');

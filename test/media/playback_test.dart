@@ -16,11 +16,18 @@ const pcma = CodecInfo(kind: 'audio', name: 'pcm_alaw', sampleRate: 8000);
 const aac = CodecInfo(kind: 'audio', name: 'aac');
 
 class FakeBackend implements PlayerBackend {
-  FakeBackend(this.mode, {this.fail = false, this.openDelay = Duration.zero});
+  FakeBackend(
+    this.mode, {
+    this.fail = false,
+    this.openDelay = Duration.zero,
+    this.volumeDelay = Duration.zero,
+  });
   @override
   final PlayerMode mode;
   final bool fail;
   final Duration openDelay;
+  final Duration volumeDelay;
+  bool? lastMuted;
   bool opened = false;
   bool disposed = false;
   int counter = 0;
@@ -39,9 +46,9 @@ class FakeBackend implements PlayerBackend {
   @override
   Widget view({BoxFit fit = BoxFit.contain}) => const SizedBox();
   @override
-  Future<void> setVolume(double volume) async {}
+  Future<void> setVolume(double volume) => Future<void>.delayed(volumeDelay);
   @override
-  Future<void> setMuted({required bool muted}) async {}
+  Future<void> setMuted({required bool muted}) async => lastMuted = muted;
   @override
   Future<Uint8List?> snapshot() async => null;
   @override
@@ -169,6 +176,68 @@ void main() {
         await p.dispose();
       },
     );
+  });
+
+  group('closing the screen stops the sound', () {
+    test('closed while connecting: that backend is freed at once', () async {
+      final made = <FakeBackend>[];
+      final p = CameraPlayer(
+        api: () => fakeApi(h264pcma),
+        createBackend: (mode, _) {
+          final b = FakeBackend(
+            mode,
+            openDelay: const Duration(milliseconds: 300),
+          );
+          made.add(b);
+          return b;
+        },
+      );
+      final playing = p.play('tok');
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await p.dispose();
+      expect(made.single.disposed, isTrue, reason: 'not after open ends');
+      await playing;
+      expect(made.every((b) => b.disposed), isTrue);
+    });
+
+    test(
+      'closed while volume is applied: backend is not left playing',
+      () async {
+        final made = <FakeBackend>[];
+        final p = CameraPlayer(
+          api: () => fakeApi(h264pcma),
+          createBackend: (mode, _) {
+            final b = FakeBackend(
+              mode,
+              volumeDelay: const Duration(milliseconds: 200),
+            );
+            made.add(b);
+            return b;
+          },
+        );
+        final playing = p.play('tok');
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        await p.dispose();
+        await playing;
+        expect(made, isNotEmpty);
+        expect(made.every((b) => b.disposed), isTrue);
+      },
+    );
+
+    test('talking silences the camera without changing mute', () async {
+      final b = FakeBackend(PlayerMode.webrtc);
+      final p = CameraPlayer(
+        api: () => fakeApi(h264pcma),
+        createBackend: (_, _) => b,
+      );
+      await p.play('tok');
+      await p.duck(on: true);
+      expect(b.lastMuted, isTrue);
+      expect(p.muted, isFalse);
+      await p.duck(on: false);
+      expect(b.lastMuted, isFalse);
+      await p.dispose();
+    });
   });
 
   test(

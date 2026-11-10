@@ -21,6 +21,7 @@ class WebRtcPlayer implements PlayerBackend {
   RTCPeerConnection? _pc;
   final RTCVideoRenderer _renderer = RTCVideoRenderer();
   bool _rendererReady = false;
+  bool _disposed = false;
   MediaStreamTrack? _audio;
   MediaStreamTrack? _video;
   double _volume = 1;
@@ -29,15 +30,48 @@ class WebRtcPlayer implements PlayerBackend {
   @override
   PlayerMode get mode => PlayerMode.webrtc;
 
+  /// Highest volume [setVolume] accepts (1 = as received).
+  static const maxVolume = 2.0;
+
+  /// Call once at start-up, before any connection. flutter_webrtc on
+  /// Android defaults to *voice call* audio: the quieter call volume and
+  /// phone-call routing. Camera sound is media: play it on the media stream
+  /// so it is as loud as any video app and follows the media volume.
+  static Future<void> configureAudio() async {
+    if (!Platform.isAndroid) return;
+    try {
+      await WebRTC.initialize(
+        options: {
+          'androidAudioConfiguration': AndroidAudioConfiguration.media.toMap(),
+        },
+      );
+      await Helper.setAndroidAudioConfiguration(
+        AndroidAudioConfiguration.media,
+      );
+    } on Object {
+      // Keep the defaults: quieter, but sound still plays.
+    }
+  }
+
   @override
   Future<void> open() async {
     await _renderer.initialize();
     _rendererReady = true;
+    if (_disposed) {
+      await dispose();
+      throw StateError('closed while opening');
+    }
 
     final pc = await createPeerConnection({
       'sdpSemantics': 'unified-plan',
       'iceServers': <Object>[],
     });
+    if (_disposed) {
+      // Closed while we were creating it: nobody else will close this one.
+      await pc.close();
+      await pc.dispose();
+      throw StateError('closed while opening');
+    }
     _pc = pc;
 
     // Listeners go on *before* negotiation: on loopback the connection can
@@ -83,6 +117,7 @@ class WebRtcPlayer implements PlayerBackend {
     // desktop doesn't reliably deliver.
     final deadline = DateTime.now().add(const Duration(seconds: 10));
     while (DateTime.now().isBefore(deadline)) {
+      if (_disposed) throw StateError('closed while opening');
       if (failed) throw StateError('WebRTC connection failed');
       if (((await stats()).framesDecoded ?? 0) > 0) return;
       await Future<void>.delayed(const Duration(milliseconds: 100));
@@ -167,7 +202,9 @@ class WebRtcPlayer implements PlayerBackend {
 
   @override
   Future<void> setVolume(double volume) async {
-    _volume = volume.clamp(0, 1);
+    // WebRTC track gain goes above 1: up to 2 = a 2× boost for quiet
+    // cameras.
+    _volume = volume.clamp(0, maxVolume);
     await _applyAudio();
   }
 
@@ -192,16 +229,38 @@ class WebRtcPlayer implements PlayerBackend {
 
   @override
   Future<void> dispose() async {
+    _disposed = true;
     final pc = _pc;
+    final audio = _audio;
     _pc = null;
     _audio = null;
     _video = null;
-    if (_rendererReady) {
-      _renderer.srcObject = null;
-      await _renderer.dispose();
-      _rendererReady = false;
+    // Sound off and connection closed first, each step on its own: if one
+    // throws, the others must still run, or the audio plays on after the
+    // screen is gone.
+    try {
+      audio?.enabled = false;
+    } on Object {
+      // already gone
     }
-    await pc?.close();
-    await pc?.dispose();
+    try {
+      await pc?.close();
+    } on Object {
+      // already closed
+    }
+    try {
+      await pc?.dispose();
+    } on Object {
+      // already disposed
+    }
+    if (_rendererReady) {
+      _rendererReady = false;
+      try {
+        _renderer.srcObject = null;
+        await _renderer.dispose();
+      } on Object {
+        // renderer already released
+      }
+    }
   }
 }

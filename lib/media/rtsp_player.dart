@@ -8,6 +8,7 @@ import 'package:camstation/media/player_backend.dart';
 import 'package:flutter/widgets.dart';
 import 'package:fvp/fvp.dart';
 import 'package:video_player/video_player.dart';
+import 'package:video_player_platform_interface/video_player_platform_interface.dart';
 
 /// Fallback: fvp (libmdk) plays go2rtc's loopback RTSP re-stream. Used for
 /// H.265 where WebRTC can't decode it, and for AAC audio.
@@ -70,7 +71,7 @@ class RtspPlayer implements PlayerBackend {
       const Duration(seconds: 15),
       onTimeout: () => throw TimeoutException('RTSP player did not start'),
     );
-    await c.setVolume(_muted ? 0 : _volume);
+    await _applyVolume();
     await c.play();
   }
 
@@ -115,14 +116,29 @@ class RtspPlayer implements PlayerBackend {
 
   @override
   Future<void> setVolume(double volume) async {
-    _volume = volume.clamp(0, 1);
-    await _c?.setVolume(_muted ? 0 : _volume);
+    _volume = volume.clamp(0, 2);
+    await _applyVolume();
+  }
+
+  /// Straight to fvp: video_player caps volume at 1, but libmdk amplifies
+  /// above it (up to 2 = a 2× boost for quiet cameras).
+  Future<void> _applyVolume() async {
+    final c = _c;
+    if (c == null || !c.value.isInitialized) return;
+    try {
+      await VideoPlayerPlatform.instance.setVolume(
+        c.playerId,
+        _muted ? 0 : _volume,
+      );
+    } on Object {
+      await c.setVolume(_muted ? 0 : _volume.clamp(0, 1));
+    }
   }
 
   @override
   Future<void> setMuted({required bool muted}) async {
     _muted = muted;
-    await _c?.setVolume(muted ? 0 : _volume);
+    await _applyVolume();
   }
 
   @override

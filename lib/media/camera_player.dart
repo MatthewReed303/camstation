@@ -79,6 +79,11 @@ class CameraPlayer {
   bool _muted = false;
   bool _disposed = false;
 
+  /// The backend being opened right now. WebRTC sound starts before the
+  /// first video frame, so [dispose] must stop this one too, or its audio
+  /// keeps playing after the screen is closed.
+  PlayerBackend? _opening;
+
   /// Stream name → codecs seen by the last probe (process lifetime).
   static final Map<String, List<CodecInfo>> _codecCache = {};
 
@@ -151,7 +156,7 @@ class CameraPlayer {
       // asleep). That must schedule a retry, not leave us stuck.
       PlayerBackend? b;
       try {
-        b = createBackend(mode, name);
+        b = _opening = createBackend(mode, name);
         await b.open();
       } on Object catch (e) {
         AppLog.add(
@@ -159,16 +164,24 @@ class CameraPlayer {
           '$name: ${mode.name} failed after ${t.elapsedMilliseconds} ms: $e',
         );
         lastError = e;
+        if (identical(_opening, b)) _opening = null;
         await b?.dispose();
         if (gen != _generation) return;
         continue;
       }
+      if (identical(_opening, b)) _opening = null;
       if (gen != _generation || _disposed) {
         await b.dispose(); // superseded while connecting
         return;
       }
       await b.setVolume(_volume);
-      await b.setMuted(muted: _muted);
+      await b.setMuted(muted: _muted || _ducked);
+      // Closed or superseded during those awaits: never install a backend
+      // nobody will dispose (its sound would play on with no screen).
+      if (gen != _generation || _disposed) {
+        await b.dispose();
+        return;
+      }
       await _swap(b);
       AppLog.add(
         'player',
@@ -225,7 +238,17 @@ class CameraPlayer {
 
   Future<void> setMuted({required bool muted}) async {
     _muted = muted;
-    await backend.value?.setMuted(muted: muted);
+    await backend.value?.setMuted(muted: _muted || _ducked);
+  }
+
+  bool _ducked = false;
+
+  /// Silence the camera while the user talks (push-to-talk), without
+  /// changing their mute setting. Stops the phone's speaker feeding back
+  /// into its microphone.
+  Future<void> duck({required bool on}) async {
+    _ducked = on;
+    await backend.value?.setMuted(muted: _muted || _ducked);
   }
 
   bool get muted => _muted;
@@ -304,7 +327,9 @@ class CameraPlayer {
     _generation++;
     _retry?.cancel();
     _watchdog?.stop();
-    await _swap(null);
+    final opening = _opening;
+    _opening = null;
+    await Future.wait([_swap(null), if (opening != null) opening.dispose()]);
     state.dispose();
     backend.dispose();
   }

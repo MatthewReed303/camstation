@@ -24,7 +24,8 @@ Networks of cameras you have added are always included in later scans.
 
 - Tap a camera to open it. **✕** takes you back to the list.
 - **HD / SD:** the full-quality stream, or a lighter one (good on mobile data or older phones).
-- **Volume:** mute, or set the volume.
+- **Volume:** mute, or set the volume. Quiet camera? Slide past the middle to boost it up to
+  200%.
 - **Snapshot:** saves a picture. On Android it goes to the app's folder; on desktop, to
   Downloads/CamStation.
 - **Full screen:** double-tap the video or use the full-screen button. Tap the video to show
@@ -32,8 +33,9 @@ Networks of cameras you have added are always included in later scans.
 - **Rotate** (phones): auto-rotate, landscape or portrait.
 - **Pinch** to zoom in. Tap **Reset zoom** to go back.
 - **Swipe** left or right to move to the next camera.
-- **Hold to talk:** press and hold to speak through the camera's speaker. This needs the
-  camera to support two-way audio; the first time, Android asks for microphone access.
+- **Talk:** press and hold the **microphone** to speak through the camera's speaker; it turns
+  red while the camera hears you, and the camera's own sound pauses so it doesn't echo. This
+  needs a camera with two-way audio; the first time, Android asks for microphone access.
 - **Phone asleep?** When you come back, the video reconnects by itself.
 
 <img src="screenshots/full-screen.webp" width="220" alt="Full screen">
