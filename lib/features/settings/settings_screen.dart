@@ -11,7 +11,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-const appVersion = '0.3.0';
+const appVersion = '0.3.1';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});

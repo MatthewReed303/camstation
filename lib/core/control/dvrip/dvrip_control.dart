@@ -145,15 +145,6 @@ class DvripControl implements CameraControl {
     } on Object {
       _encodeCap = const {};
     }
-    Map<String, Object?> fn = const {};
-    try {
-      fn =
-          (await _client.getAbility('SystemFunction')
-              as Map<String, Object?>?) ??
-          const {};
-    } on Object {
-      // older firmware: assume the basics
-    }
     _features = {
       ControlFeature.video,
       ControlFeature.audioToggle,

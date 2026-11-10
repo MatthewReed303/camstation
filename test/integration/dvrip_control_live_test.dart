@@ -7,7 +7,6 @@ library;
 
 import 'dart:io';
 
-import 'package:camstation/core/control/camera_control.dart';
 import 'package:camstation/core/control/dvrip/dvrip_control.dart';
 import 'package:flutter_test/flutter_test.dart';
 
