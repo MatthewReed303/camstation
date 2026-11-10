@@ -116,12 +116,12 @@ class RtspPlayer implements PlayerBackend {
 
   @override
   Future<void> setVolume(double volume) async {
-    _volume = volume.clamp(0, 2);
+    _volume = volume.clamp(0, 5);
     await _applyVolume();
   }
 
   /// Straight to fvp: video_player caps volume at 1, but libmdk amplifies
-  /// above it (up to 2 = a 2× boost for quiet cameras).
+  /// above it (up to 5× for quiet cameras).
   Future<void> _applyVolume() async {
     final c = _c;
     if (c == null || !c.value.isInitialized) return;

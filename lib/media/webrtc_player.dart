@@ -31,8 +31,9 @@ class WebRtcPlayer implements PlayerBackend {
   @override
   PlayerMode get mode => PlayerMode.webrtc;
 
-  /// Highest volume [setVolume] accepts (1 = as received).
-  static const maxVolume = 2.0;
+  /// Highest gain [setVolume] accepts (1 = as received; libwebrtc allows
+  /// up to 10 and saturates instead of wrapping).
+  static const maxVolume = 5.0;
 
   /// Call once at start-up, before any connection. flutter_webrtc on
   /// Android defaults to *voice call* audio: the quieter call volume and
@@ -243,8 +244,7 @@ class WebRtcPlayer implements PlayerBackend {
 
   @override
   Future<void> setVolume(double volume) async {
-    // WebRTC track gain goes above 1: up to 2 = a 2× boost for quiet
-    // cameras.
+    // Track gain above 1 boosts quiet cameras.
     _volume = volume.clamp(0, maxVolume);
     await _applyAudio();
   }

@@ -10,7 +10,6 @@ import 'package:camstation/features/live_view/player_status_overlay.dart';
 import 'package:camstation/features/live_view/thumbnails.dart';
 import 'package:camstation/media/camera_player.dart';
 import 'package:camstation/media/talk_session.dart';
-import 'package:camstation/media/webrtc_player.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -321,11 +320,27 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
     });
   }
 
-  Future<void> _cycleOrientation() async {
-    final next = ViewOrientation
-        .values[(_orientation.index + 1) % ViewOrientation.values.length];
-    setState(() => _orientation = next);
-    _remember((v) => v.copyWith(orientation: next));
+  /// Tap: turn the screen to the other orientation (and keep it there).
+  /// Always visibly does something, unlike cycling through modes where one
+  /// step can match the current screen and seem to do nothing.
+  Future<void> _rotate() async {
+    final landscapeNow =
+        MediaQuery.orientationOf(context) == Orientation.landscape;
+    await _setOrientation(
+      landscapeNow ? ViewOrientation.portrait : ViewOrientation.landscape,
+    );
+  }
+
+  /// Long-press: back to following the phone.
+  Future<void> _autoRotate() async {
+    unawaited(HapticFeedback.mediumImpact());
+    await _setOrientation(ViewOrientation.auto);
+    _toast('Auto-rotate on');
+  }
+
+  Future<void> _setOrientation(ViewOrientation o) async {
+    setState(() => _orientation = o);
+    _remember((v) => v.copyWith(orientation: o));
     await _applyOrientation();
   }
 
@@ -377,7 +392,7 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
               Positioned(
                 left: 0,
                 right: 0,
-                top: 8,
+                top: _chipTop,
                 child: Center(
                   child: ActionChip(
                     avatar: const Icon(Icons.zoom_out_map, size: 18),
@@ -387,18 +402,22 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
                   ),
                 ),
               ),
-            if (_fullscreen && _controlsVisible)
+            // Full screen: controls float over the video on soft gradients
+            // and fade in/out, so the picture never jumps in size.
+            if (_fullscreen) ...[
               Positioned(
-                left: 8,
-                top: 8,
-                child: SafeArea(
-                  child: IconButton.filledTonal(
-                    tooltip: 'Close',
-                    onPressed: _close,
-                    icon: const Icon(Icons.close),
-                  ),
-                ),
+                left: 0,
+                right: 0,
+                top: 0,
+                child: _fade(_controlsVisible ? _topBar(cam) : null),
               ),
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: _fade(_controlsVisible ? _bottomBar(cam) : null),
+              ),
+            ],
             if (_hdStuck)
               Center(
                 child: _HdStuckCard(
@@ -418,15 +437,15 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
             if (ref.watch(settingsProvider).showStreamInfo)
               Positioned(
                 right: 8,
-                top: 8,
+                top: _chipTop,
                 child: PlayerInfoBadge(player: _player),
               ),
             if (_talking)
-              const Positioned(
+              Positioned(
                 left: 0,
                 right: 0,
-                bottom: 8,
-                child: Center(
+                top: _chipTop + (_zoomed ? 44 : 0),
+                child: const Center(
                   child: Chip(
                     avatar: Icon(Icons.mic, color: Colors.red),
                     label: Text('Talking'),
@@ -460,14 +479,7 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
       body: LayoutBuilder(
         builder: (context, box) {
           final portrait = box.maxHeight > box.maxWidth * 1.2;
-          if (_fullscreen) {
-            return Column(
-              children: [
-                Expanded(child: video),
-                if (_controlsVisible) _controlsRow(cam),
-              ],
-            );
-          }
+          if (_fullscreen) return video;
           if (!portrait) {
             return Column(
               children: [
@@ -519,14 +531,9 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
     },
   );
 
-  /// 0–200%: the middle is the camera's own level, above it boosts quiet
-  /// cameras.
-  static const _maxVolume = WebRtcPlayer.maxVolume;
-
   Widget get _volumeSlider => Slider(
-    value: _player.volume.clamp(0, _maxVolume),
-    max: _maxVolume,
-    divisions: (_maxVolume * 20).round(),
+    value: _player.volume,
+    divisions: 20,
     label: '${(_player.volume * 100).round()}%',
     onChanged: (v) {
       unawaited(_player.setVolume(v));
@@ -541,14 +548,22 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
     onPressed: _snapshot,
   );
 
-  Widget get _rotateButton => IconButton(
-    tooltip: 'Orientation: ${_orientation.label}',
-    icon: Icon(switch (_orientation) {
-      ViewOrientation.auto => Icons.screen_rotation,
-      ViewOrientation.landscape => Icons.stay_current_landscape,
-      ViewOrientation.portrait => Icons.stay_current_portrait,
-    }),
-    onPressed: _cycleOrientation,
+  /// Tap rotates; long-press returns to auto-rotate. (No tooltip: it would
+  /// pop up on the long-press.)
+  Widget get _rotateButton => Semantics(
+    label: 'Rotate. Long-press for auto-rotate',
+    child: GestureDetector(
+      onLongPress: _autoRotate,
+      child: IconButton(
+        key: const ValueKey('rotate'),
+        icon: Icon(
+          _orientation == ViewOrientation.auto
+              ? Icons.screen_rotation
+              : Icons.screen_lock_rotation,
+        ),
+        onPressed: _rotate,
+      ),
+    ),
   );
 
   Widget get _fullscreenButton => IconButton(
@@ -583,6 +598,78 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
       ),
     );
   }
+
+  /// Chips on the video sit below the full-screen top bar.
+  double get _chipTop => _fullscreen ? 72 : 8;
+
+  Widget _fade(Widget? child) => AnimatedSwitcher(
+    duration: const Duration(milliseconds: 200),
+    child: child ?? const SizedBox.shrink(),
+  );
+
+  static const _scrimTop = BoxDecoration(
+    gradient: LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [Color(0x99000000), Color(0x00000000)],
+    ),
+  );
+  static const _scrimBottom = BoxDecoration(
+    gradient: LinearGradient(
+      begin: Alignment.bottomCenter,
+      end: Alignment.topCenter,
+      colors: [Color(0xB3000000), Color(0x00000000)],
+    ),
+  );
+
+  /// Full screen top: ✕ and the camera's name.
+  Widget _topBar(Camera cam) => DecoratedBox(
+    key: const ValueKey('topBar'),
+    decoration: _scrimTop,
+    child: SafeArea(
+      bottom: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(4, 4, 16, 24),
+        child: Row(
+          children: [
+            IconButton(
+              tooltip: 'Close',
+              onPressed: _close,
+              icon: const Icon(Icons.close),
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Text(
+                cam.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                // Explicit: this State's context sits above the dark
+                // full-screen theme.
+                style: Theme.of(context).textTheme.titleMedium
+                    ?.copyWith(color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  /// Full screen bottom: the usual controls. They stay up while touched
+  /// (e.g. dragging the volume) and hide a few seconds after.
+  Widget _bottomBar(Camera cam) => Listener(
+    key: const ValueKey('bottomBar'),
+    onPointerDown: (_) => _hideControls?.cancel(),
+    onPointerUp: (_) => _showControls(),
+    onPointerCancel: (_) => _showControls(),
+    child: DecoratedBox(
+      decoration: _scrimBottom,
+      child: Padding(
+        padding: const EdgeInsets.only(top: 24),
+        child: _controlsRow(cam),
+      ),
+    ),
+  );
 
   /// One row: landscape, desktop and full screen.
   Widget _controlsRow(Camera cam) => SafeArea(

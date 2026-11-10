@@ -75,7 +75,12 @@ class CameraPlayer {
   int _generation = 0;
   StallWatchdog? _watchdog;
   Timer? _retry;
+
+  /// Volume as the user sees it, 0–1 (shown as 0–100%). The backend gets
+  /// up to [maxGain]× that: camera audio (G.711 from a small mic) is quiet,
+  /// and other camera apps boost it a lot.
   double _volume = 1;
+  static const maxGain = 5.0;
   bool _muted = false;
   bool _disposed = false;
 
@@ -174,7 +179,7 @@ class CameraPlayer {
         await b.dispose(); // superseded while connecting
         return;
       }
-      await b.setVolume(_volume);
+      await b.setVolume(_volume * maxGain);
       await b.setMuted(muted: _muted || _ducked);
       // Closed or superseded during those awaits: never install a backend
       // nobody will dispose (its sound would play on with no screen).
@@ -231,9 +236,10 @@ class CameraPlayer {
     if (old != null && !identical(old, next)) await old.dispose();
   }
 
+  /// [v] is the user's level, 0–1.
   Future<void> setVolume(double v) async {
-    _volume = v;
-    await backend.value?.setVolume(v);
+    _volume = v.clamp(0, 1);
+    await backend.value?.setVolume(_volume * maxGain);
   }
 
   Future<void> setMuted({required bool muted}) async {

@@ -308,7 +308,9 @@ class ViewState {
         .where((q) => q.name == j['quality'])
         .firstOrNull,
     muted: j['muted'] as bool?,
-    volume: (j['volume'] as num?)?.toDouble(),
+    // 'level' (0–1 of the slider). Older builds stored a raw gain under
+    // 'volume'; that is ignored so everyone starts at the new default.
+    volume: (j['level'] as num?)?.toDouble(),
     orientation: ViewOrientation.values
         .where((o) => o.name == j['orientation'])
         .firstOrNull,
@@ -338,7 +340,7 @@ class ViewState {
   Map<String, Object?> toJson() => {
     if (quality != null) 'quality': quality!.name,
     if (muted != null) 'muted': muted,
-    if (volume != null) 'volume': volume,
+    if (volume != null) 'level': volume,
     if (orientation != null) 'orientation': orientation!.name,
     if (fullscreen != null) 'fullscreen': fullscreen,
   };
