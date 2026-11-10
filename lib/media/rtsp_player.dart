@@ -20,6 +20,11 @@ class RtspPlayer implements PlayerBackend {
   double _volume = 1;
   bool _muted = false;
 
+  /// A native snapshot in flight. libmdk renders it on its own thread, and
+  /// freeing the player before it finishes crashes the app, so [dispose]
+  /// waits for it.
+  Future<Uint8List?>? _pendingShot;
+
   /// Registers fvp as the video_player backend with low-latency settings.
   /// Call once at start-up.
   static void registerBackend() {
@@ -30,7 +35,10 @@ class RtspPlayer implements PlayerBackend {
         // Hardware first, software last: fvp/libmdk tries these in order, so
         // a failing hardware decoder falls back automatically.
         'video.decoders': const [
-          'MediaCodec',
+          // copy=1: hand frames over in normal memory. Zero-copy MediaCodec
+          // frames crash libmdk when one of several players is freed (e.g.
+          // pausing a grid tile).
+          'MediaCodec:copy=1',
           'D3D11',
           'MFT:d3d=11',
           'DXVA',
@@ -131,7 +139,14 @@ class RtspPlayer implements PlayerBackend {
     final size = c.value.size;
     final w = size.width < 480 ? size.width.round() : 480;
     final h = (w * size.height / size.width).round();
-    final rgba = await c.snapshot(width: w, height: h);
+    final shot = _pendingShot = c.snapshot(width: w, height: h);
+    final Uint8List? rgba;
+    try {
+      rgba = await shot;
+    } finally {
+      if (identical(_pendingShot, shot)) _pendingShot = null;
+    }
+    if (_c == null) return null; // disposed meanwhile
     if (rgba == null || rgba.length < w * h * 4) return null;
     final done = Completer<ui.Image>();
     ui.decodeImageFromPixels(
@@ -154,6 +169,21 @@ class RtspPlayer implements PlayerBackend {
   Future<void> dispose() async {
     final c = _c;
     _c = null;
-    await c?.dispose();
+    if (c == null) return;
+    final shot = _pendingShot;
+    _pendingShot = null;
+    if (shot == null) {
+      await c.dispose();
+      return;
+    }
+    // Stop sound and network now; free the native player only once the
+    // snapshot has been delivered.
+    try {
+      await c.setVolume(0);
+      await c.pause();
+    } on Object {
+      // Best effort: the player may already be in an error state.
+    }
+    unawaited(shot.then<void>((_) {}, onError: (_) {}).whenComplete(c.dispose));
   }
 }

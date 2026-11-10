@@ -394,7 +394,7 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
       ),
     );
 
-    return Scaffold(
+    final scaffold = Scaffold(
       backgroundColor: _fullscreen ? Colors.black : null,
       appBar: _fullscreen
           ? null
@@ -447,6 +447,16 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
           );
         },
       ),
+    );
+    if (!_fullscreen) return scaffold;
+    // Full screen is always black, so its controls use the dark colours
+    // whatever the app theme is.
+    return Theme(
+      data: ThemeData(
+        colorSchemeSeed: Color(ref.watch(settingsProvider).seedColor),
+        brightness: Brightness.dark,
+      ),
+      child: scaffold,
     );
   }
 

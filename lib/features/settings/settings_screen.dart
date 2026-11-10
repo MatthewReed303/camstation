@@ -28,15 +28,18 @@ class SettingsScreen extends ConsumerWidget {
           const _SectionTitle('Appearance'),
           ListTile(
             title: const Text('Theme'),
-            trailing: SegmentedButton<ThemeMode>(
-              segments: const [
-                ButtonSegment(value: ThemeMode.system, label: Text('System')),
-                ButtonSegment(value: ThemeMode.light, label: Text('Light')),
-                ButtonSegment(value: ThemeMode.dark, label: Text('Dark')),
-              ],
-              selected: {s.themeMode},
-              onSelectionChanged: (v) =>
-                  notifier.update(s.copyWith(themeMode: v.first)),
+            subtitle: Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: SegmentedButton<ThemeMode>(
+                segments: const [
+                  ButtonSegment(value: ThemeMode.system, label: Text('System')),
+                  ButtonSegment(value: ThemeMode.light, label: Text('Light')),
+                  ButtonSegment(value: ThemeMode.dark, label: Text('Dark')),
+                ],
+                selected: {s.themeMode},
+                onSelectionChanged: (v) =>
+                    notifier.update(s.copyWith(themeMode: v.first)),
+              ),
             ),
           ),
           ListTile(

@@ -74,6 +74,13 @@ To update the engine:
 | `CAMSTATION_CAM_IP=<ip> flutter test test/integration/dvrip_control_live_test.dart` | DVRIP camera settings (read-only unless `CAMSTATION_ALLOW_WRITE=1`) |
 | `CAMSTATION_CAM_IP=<ip> CAMSTATION_ONVIF_PORT=<port> flutter test test/integration/onvif_control_live_test.dart` | ONVIF camera settings |
 | `CAMSTATION_CAM_IP=<ip> scripts/linux_env.sh flutter test integration_test/user_journey_test.dart -d linux` | A first-time user's whole journey on a phone-sized screen, with a screenshot per step |
+| `scripts/linux_env.sh flutter test integration_test/demo_journey_test.dart -d linux` | The same with the demo camera (below): live view, full screen, recovery after sleep, grid, settings |
+| `flutter test integration_test/rtsp_dispose_diag_test.dart -d <device> --dart-define=CAMSTATION_DEMO_URL=…` | Freeing one of several RTSP players (a native-crash regression check) |
+
+**Demo camera.** `tool/demo_camera.sh` (needs GStreamer) serves a test pattern with a clock on
+`tcp://<host>:9100`. Add it as *Other stream URL*. From the Android emulator, the host is
+`10.0.2.2`. The documentation screenshots come from the demo journey; never use a real camera
+for them.
 
 **On an Android device or emulator:**
 - Pass camera settings with `--dart-define=CAMSTATION_CAM_IP=<ip>` instead of environment

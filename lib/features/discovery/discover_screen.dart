@@ -39,6 +39,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
   }
 
   Future<void> _scan() async {
+    if (_scanning) return; // Enter in the box while a scan is running
     List<String> hosts;
     try {
       hosts = {

@@ -190,6 +190,8 @@ class EngineManager {
     _process = null;
     _api?.close();
     _api = null;
+    // Its ports are dead: players must fail fast and retry, not dial them.
+    _settings = null;
     _pidFile.deleteSync2();
     if (_stopping) return;
     _addLog('engine exited with code $code');

@@ -15,6 +15,11 @@ import 'package:go_router/go_router.dart';
 /// - Each tile shows its name, a status dot and sound/pause buttons.
 /// - Only tiles on screen play, and the grid pauses while a camera is open.
 /// Columns, order, hidden and paused cameras are remembered.
+/// Auto grid layout: as many columns as fit with tiles at least ~320 dp
+/// wide, between 1 and [max], and never more columns than cameras.
+int gridAutoColumns(double width, int count, int max) =>
+    (width / 320).floor().clamp(1, max).clamp(1, count < 1 ? 1 : count);
+
 class GridScreen extends ConsumerStatefulWidget {
   const GridScreen({super.key});
 
@@ -74,7 +79,12 @@ class _GridScreenState extends ConsumerState<GridScreen> {
         .where((c) => !settings.gridHidden.contains(c.id))
         .toList();
     final maxCols = _maxColumns(context);
-    final cols = settings.gridColumns.clamp(1, maxCols);
+    final width = MediaQuery.sizeOf(context).width;
+    final auto = settings.gridColumns == 0;
+    final cols = auto
+        ? gridAutoColumns(width, visible.length, maxCols)
+        : settings.gridColumns.clamp(1, maxCols);
+    final tileWidth = (width - 8 * (cols + 1)) / cols;
 
     return Scaffold(
       appBar: AppBar(
@@ -85,10 +95,15 @@ class _GridScreenState extends ConsumerState<GridScreen> {
             icon: const Icon(Icons.view_module_outlined),
             onSelected: (v) => _set((s) => s.copyWith(gridColumns: v)),
             itemBuilder: (_) => [
+              CheckedPopupMenuItem(
+                value: 0,
+                checked: auto,
+                child: const Text('Auto'),
+              ),
               for (var n = 1; n <= maxCols; n++)
                 CheckedPopupMenuItem(
                   value: n,
-                  checked: n == cols,
+                  checked: !auto && n == cols,
                   child: Text(n == 1 ? '1 column' : '$n columns'),
                 ),
             ],
@@ -146,7 +161,7 @@ class _GridScreenState extends ConsumerState<GridScreen> {
                   paused: settings.gridPaused.contains(c.id),
                   active: !_covered,
                   audible: _audible == c.id,
-                  compact: cols >= 3,
+                  compact: tileWidth < 260,
                   onOpen: () => _open(c.id),
                   onTogglePause: () => _togglePause(c.id),
                   onToggleSound: () =>

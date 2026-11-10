@@ -2,7 +2,7 @@
 
 ## Adding a camera
 
-<img src="screenshots/add-camera-scan.webp" width="220" align="right" alt="Add camera">
+<img src="screenshots/add-camera.webp" width="220" align="right" alt="Add camera">
 
 1. Tap **Add camera**. CamStation scans your network straight away.
 2. Tap your camera in the list. If it isn't there:
@@ -28,12 +28,15 @@ Networks of cameras you have added are always included in later scans.
 - **Snapshot:** saves a picture. On Android it goes to the app's folder; on desktop, to
   Downloads/CamStation.
 - **Full screen:** double-tap the video or use the full-screen button. Tap the video to show
-  or hide the controls.
+  or hide the controls and the **✕**; they hide by themselves after a few seconds.
 - **Rotate** (phones): auto-rotate, landscape or portrait.
 - **Pinch** to zoom in. Tap **Reset zoom** to go back.
 - **Swipe** left or right to move to the next camera.
 - **Hold to talk:** press and hold to speak through the camera's speaker. This needs the
   camera to support two-way audio; the first time, Android asks for microphone access.
+- **Phone asleep?** When you come back, the video reconnects by itself.
+
+<img src="screenshots/full-screen.webp" width="220" alt="Full screen">
 
 <br clear="right">
 
@@ -56,17 +59,18 @@ screen. To fix them instead, open the camera's **⋮ → Edit → When this came
 <img src="screenshots/grid.webp" width="220" align="right" alt="Grid">
 
 - Tap the grid icon on the camera list.
-- **Layout:** choose 1–4 columns. Only cameras on screen play, to save data and battery.
-- **Tap a tile** for its controls: pause, sound and open. A paused tile shows its last image.
-- **Double-tap** a tile to open it.
+- **Layout:** *Auto* fits the tiles to your screen (one column on a phone held upright), or
+  choose 1–4 columns. Only cameras on screen play, to save data and battery.
+- **Tap a tile** to open the camera. Each tile shows a status dot (live, connecting, offline,
+  paused) with **sound** and **pause** buttons. A paused tile shows its last image.
+- **Long-press** a tile for more: open, pause/play, listen, or hide it from the grid.
+- **Offline?** Tap **Retry** on the tile.
 - **Arrange:** drag cameras into order and switch off the ones you don't want in the grid.
 - **⋮ → Pause all / Play all.**
 
 <br clear="right">
 
 ## Camera settings
-
-<img src="screenshots/camera-settings.webp" width="220" align="right" alt="Camera settings">
 
 Open a camera and tap the settings icon, or use **⋮ → Camera settings** on the list.
 What you can change depends on the camera:
@@ -83,11 +87,17 @@ What you can change depends on the camera:
 
 ## App settings
 
+<img src="screenshots/settings.webp" width="220" align="right" alt="Settings">
+
 - **Theme:** System, Light or Dark, and an accent colour.
 - **Default stream:** what cameras open with before you have watched them.
 - **Player:** Auto picks the best player for each camera. Choose WebRTC or RTSP only if
   asked to while troubleshooting.
+- **Keep screen on:** *While watching* (the default), *Always* while the app is open, or
+  *Off*.
 - **Show stream details:** shows the player and codecs on the video.
+
+<br clear="right">
 
 ## Troubleshooting
 

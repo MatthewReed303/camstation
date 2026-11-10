@@ -172,7 +172,7 @@ class AppSettings {
     this.lastScanTargets = '',
     this.themeMode = ThemeMode.system,
     this.seedColor = 0xFF2E7D6B,
-    this.gridColumns = 2,
+    this.gridColumns = 0,
     this.gridHidden = const {},
     this.gridPaused = const {},
     this.showStreamInfo = false,
@@ -194,7 +194,7 @@ class AppSettings {
       orElse: () => ThemeMode.system,
     ),
     seedColor: (j['seedColor'] as int?) ?? 0xFF2E7D6B,
-    gridColumns: ((j['gridColumns'] as int?) ?? 2).clamp(1, 4),
+    gridColumns: ((j['gridCols'] as int?) ?? 0).clamp(0, 4),
     gridHidden: {...?(j['gridHidden'] as List?)?.cast<String>()},
     gridPaused: {...?(j['gridPaused'] as List?)?.cast<String>()},
     showStreamInfo: (j['showStreamInfo'] as bool?) ?? false,
@@ -212,6 +212,8 @@ class AppSettings {
   final String lastScanTargets;
   final ThemeMode themeMode;
   final int seedColor;
+
+  /// Grid columns; 0 = auto (fit tiles to the screen width).
   final int gridColumns;
   final Set<String> gridHidden;
   final Set<String> gridPaused;
@@ -250,7 +252,7 @@ class AppSettings {
     'lastScanTargets': lastScanTargets,
     'themeMode': themeMode.name,
     'seedColor': seedColor,
-    'gridColumns': gridColumns,
+    'gridCols': gridColumns,
     'gridHidden': gridHidden.toList(),
     'gridPaused': gridPaused.toList(),
     'showStreamInfo': showStreamInfo,

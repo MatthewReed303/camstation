@@ -13,7 +13,7 @@
   <img src="docs/screenshots/camera-list.webp" width="200" alt="Camera list">
   <img src="docs/screenshots/live-view.webp" width="200" alt="Live view">
   <img src="docs/screenshots/grid.webp" width="200" alt="Grid">
-  <img src="docs/screenshots/camera-settings.webp" width="200" alt="Camera settings">
+  <img src="docs/screenshots/camera-list-dark.webp" width="200" alt="Dark theme">
 </p>
 
 ## Features
@@ -23,8 +23,8 @@
 - **Live view with sound.** It starts in about a second, with HD/SD, volume, snapshots, full
   screen, pinch to zoom, and swipe to the next camera.
 - **Push-to-talk.** Hold the button to speak through the camera's speaker.
-- **Grid.** Watch several cameras at once, in 1–4 columns. Rearrange them, hide some, pause
-  any tile, and pick which one you hear.
+- **Grid.** Watch several cameras at once. Tiles fit the screen automatically, or pick 1–4
+  columns. Rearrange them, hide some, pause any tile, and pick which one you hear.
 - **Opens the way you left it.** Each camera remembers its stream, sound, volume, orientation
   and full screen, or you can set fixed defaults per camera.
 - **Camera settings.** Video quality, frame rate, bitrate, audio on/off, image, clock, password
@@ -32,6 +32,7 @@
 - **Private.** Video stays on your network and your device. Passwords live in the system's
   secure storage. No account, no cloud, no tracking.
 - **Light and dark themes** with a choice of accent colours.
+- **Keeps the screen on** while you watch, always, or never: your choice.
 
 ## Supported cameras
 

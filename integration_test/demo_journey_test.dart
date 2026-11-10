@@ -99,7 +99,7 @@ void main() {
       await settle(ms);
     }
 
-    Future<void> addDemoCamera(String name) async {
+    Future<void> addDemoCamera(String name, {bool shotForm = false}) async {
       await tap(find.text('Add camera'), 2500);
       await tap(find.text('Enter details manually'), 1000);
       await tap(find.text('Auto-detect (recommended)'), 600);
@@ -113,8 +113,11 @@ void main() {
         find.widgetWithText(TextFormField, 'Username'),
         '',
       );
+      FocusManager.instance.primaryFocus?.unfocus();
+      await settle(400);
       await tap(find.text('Test'), 8000);
-      await tap(find.text('Save'), 1500);
+      if (shotForm) await shot('add_camera');
+      await tap(find.byTooltip('Save'), 1500);
     }
 
     // 1. Empty state.
@@ -122,7 +125,7 @@ void main() {
     await shot('empty');
 
     // 2. Two demo cameras added by URL.
-    await addDemoCamera('Front door');
+    await addDemoCamera('Front door', shotForm: true);
     await addDemoCamera('Driveway');
     await settle(1000);
     await shot('list');
@@ -170,6 +173,21 @@ void main() {
     await tap(find.byTooltip('Close'), 1500);
     expect(find.byTooltip('Layout'), findsOneWidget, reason: '✕ back to grid');
     await tap(find.byType(BackButton), 800);
+    await settle(1500);
+    await shot('list_thumbs');
+
+    // Per-camera defaults: ⋮ → Edit → When this camera opens.
+    await tap(find.byTooltip('Show menu').first, 800);
+    await tap(find.text('Edit'), 1500);
+    await tap(find.text('When this camera opens'), 800);
+    // Orientation is a phone-only choice; Full screen is always there.
+    await tester.ensureVisible(
+      find.text(Platform.isAndroid ? 'Orientation' : 'Full screen').last,
+    );
+    await settle(500);
+    await shot('camera_defaults');
+    await tester.pageBack();
+    await settle(1000);
 
     // 6. Settings: keep screen on + dark theme.
     await tap(find.byTooltip('Settings'), 800);

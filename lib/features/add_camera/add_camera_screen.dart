@@ -250,11 +250,18 @@ class _AddCameraScreenState extends ConsumerState<AddCameraScreen> {
         title: Text(editing ? 'Edit camera' : 'Add camera'),
         actions: [
           if (!editing)
-            TextButton.icon(
+            IconButton(
+              tooltip: 'Scan network',
               onPressed: () => context.pushReplacement('/discover'),
               icon: const Icon(Icons.radar),
-              label: const Text('Scan network'),
             ),
+          // Always reachable, even with the keyboard and test results
+          // pushing the bottom buttons off a phone screen.
+          IconButton(
+            tooltip: 'Save',
+            onPressed: _busy ? null : _save,
+            icon: const Icon(Icons.check),
+          ),
         ],
       ),
       body: Form(
@@ -475,9 +482,21 @@ class _LabeledChoice<T> extends StatelessWidget {
           width: double.infinity,
           child: SegmentedButton<T>(
             showSelectedIcon: false,
+            style: const ButtonStyle(
+              padding: WidgetStatePropertyAll(
+                EdgeInsets.symmetric(horizontal: 4),
+              ),
+            ),
             segments: [
               for (final v in values)
-                ButtonSegment(value: v, label: Text(labelOf(v))),
+                ButtonSegment(
+                  value: v,
+                  // Shrink rather than wrap mid-word on narrow phones.
+                  label: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(labelOf(v), maxLines: 1, softWrap: false),
+                  ),
+                ),
             ],
             selected: {selected},
             onSelectionChanged: (v) => onChanged(v.first),

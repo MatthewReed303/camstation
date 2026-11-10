@@ -277,8 +277,13 @@ class CameraPlayer {
     unawaited(_connect(attempt: 0));
   }
 
-  /// Retry now (e.g. user tapped "retry").
-  Future<void> reconnect() => _connect(attempt: 0);
+  /// Retry now (e.g. user tapped "retry"). Shows "Connecting" straight away
+  /// so the tap visibly does something.
+  Future<void> reconnect() async {
+    if (_disposed || _stream == null) return;
+    state.value = const PlayerState(status: PlayerStatus.connecting);
+    await _connect(attempt: 0);
+  }
 
   Widget view({BoxFit fit = BoxFit.contain}) => RepaintBoundary(
     key: _boundary,
