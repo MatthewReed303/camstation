@@ -127,6 +127,9 @@ class RtspPlayer implements PlayerBackend {
     if (c == null || !c.value.isInitialized) return;
     try {
       await VideoPlayerPlatform.instance.setVolume(
+        // playerId is marked for tests only, but it is the only handle to
+        // the platform player; fvp's own controller extension reads it too.
+        // ignore: invalid_use_of_visible_for_testing_member
         c.playerId,
         _muted ? 0 : _volume,
       );

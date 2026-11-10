@@ -22,6 +22,7 @@ class WebRtcPlayer implements PlayerBackend {
   final RTCVideoRenderer _renderer = RTCVideoRenderer();
   bool _rendererReady = false;
   bool _disposed = false;
+  bool _negotiating = false;
   MediaStreamTrack? _audio;
   MediaStreamTrack? _video;
   double _volume = 1;
@@ -58,7 +59,7 @@ class WebRtcPlayer implements PlayerBackend {
     await _renderer.initialize();
     _rendererReady = true;
     if (_disposed) {
-      await dispose();
+      await _close();
       throw StateError('closed while opening');
     }
 
@@ -70,6 +71,7 @@ class WebRtcPlayer implements PlayerBackend {
       // Closed while we were creating it: nobody else will close this one.
       await pc.close();
       await pc.dispose();
+      await _close();
       throw StateError('closed while opening');
     }
     _pc = pc;
@@ -109,8 +111,35 @@ class WebRtcPlayer implements PlayerBackend {
     );
 
     final offer = await _completeOffer(pc);
-    final answer = await api.webrtcAnswer(streamName, offer);
-    await pc.setRemoteDescription(RTCSessionDescription(answer, 'answer'));
+    if (_disposed) {
+      await _close(); // nothing sent to the engine yet
+      throw StateError('closed while opening');
+    }
+    // From here the engine has its side of the call. If the screen closes
+    // now, a half-made call would hold the camera stream until the engine's
+    // ICE timeout, so dispose() leaves the hang-up to us (below).
+    _negotiating = true;
+    try {
+      final answer = await api.webrtcAnswer(streamName, offer);
+      await pc.setRemoteDescription(RTCSessionDescription(answer, 'answer'));
+    } on Object {
+      _negotiating = false;
+      if (_disposed) await _close();
+      rethrow;
+    }
+    if (_disposed) {
+      // Let it connect (sound stays off), then hang up properly so the
+      // engine releases the camera straight away.
+      final until = DateTime.now().add(const Duration(seconds: 3));
+      while (DateTime.now().isBefore(until) && !failed) {
+        if (await progress() > 0) break;
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      }
+      _negotiating = false;
+      await _close();
+      throw StateError('closed while opening');
+    }
+    _negotiating = false;
 
     // Ready = the first video frame is decoded. That is what the user sees,
     // and it doesn't depend on connection-state events, which flutter_webrtc
@@ -191,7 +220,7 @@ class WebRtcPlayer implements PlayerBackend {
   Future<void> _applyAudio() async {
     final a = _audio;
     if (a == null) return;
-    a.enabled = !_muted;
+    a.enabled = !_muted && !_disposed;
     try {
       await Helper.setVolume(_volume, a);
     } on Object {
@@ -230,19 +259,24 @@ class WebRtcPlayer implements PlayerBackend {
   @override
   Future<void> dispose() async {
     _disposed = true;
-    final pc = _pc;
-    final audio = _audio;
-    _pc = null;
-    _audio = null;
-    _video = null;
-    // Sound off and connection closed first, each step on its own: if one
-    // throws, the others must still run, or the audio plays on after the
-    // screen is gone.
     try {
-      audio?.enabled = false;
+      _audio?.enabled = false; // silence first, whatever happens next
     } on Object {
       // already gone
     }
+    // Mid-handshake: open() completes it and hangs up (see there).
+    if (_negotiating) return;
+    await _close();
+  }
+
+  /// Closes the connection and the renderer. Each step on its own: if one
+  /// throws, the others must still run, or the sound plays on after the
+  /// screen is gone.
+  Future<void> _close() async {
+    final pc = _pc;
+    _pc = null;
+    _audio = null;
+    _video = null;
     try {
       await pc?.close();
     } on Object {

@@ -75,6 +75,7 @@ To update the engine:
 | `CAMSTATION_CAM_IP=<ip> CAMSTATION_ONVIF_PORT=<port> flutter test test/integration/onvif_control_live_test.dart` | ONVIF camera settings |
 | `CAMSTATION_CAM_IP=<ip> scripts/linux_env.sh flutter test integration_test/user_journey_test.dart -d linux` | A first-time user's whole journey on a phone-sized screen, with a screenshot per step |
 | `scripts/linux_env.sh flutter test integration_test/demo_journey_test.dart -d linux` | The same with the demo camera (below): live view, full screen, recovery after sleep, grid, settings |
+| `CAMSTATION_CAM_IP=<ip> scripts/linux_env.sh flutter test integration_test/close_stops_stream_test.dart -d linux` | Closing a camera (also mid-connect) leaves nothing pulling its stream |
 | `flutter test integration_test/rtsp_dispose_diag_test.dart -d <device> --dart-define=CAMSTATION_DEMO_URL=…` | Freeing one of several RTSP players (a native-crash regression check) |
 
 **Demo camera.** `tool/demo_camera.sh` (needs GStreamer) serves a test pattern with a clock on
