@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:camstation/app/providers.dart';
 import 'package:camstation/core/cameras/camera.dart';
+import 'package:camstation/core/util/screen_awake.dart';
 import 'package:camstation/features/live_view/player_factory.dart';
 import 'package:camstation/features/live_view/player_status_overlay.dart';
 import 'package:camstation/features/live_view/thumbnails.dart';
@@ -30,6 +31,18 @@ class _GridScreenState extends ConsumerState<GridScreen> {
 
   Future<void> _set(AppSettings Function(AppSettings) f) =>
       ref.read(settingsProvider.notifier).update(f(_s));
+
+  @override
+  void initState() {
+    super.initState();
+    ScreenAwake.watching(on: true);
+  }
+
+  @override
+  void dispose() {
+    ScreenAwake.watching(on: false);
+    super.dispose();
+  }
 
   Future<void> _togglePause(String id) => _set((s) {
     final p = {...s.gridPaused};

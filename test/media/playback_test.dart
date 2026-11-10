@@ -158,6 +158,29 @@ void main() {
     );
   });
 
+  test(
+    'engine down while connecting (phone asleep) → retries, then recovers',
+    () async {
+      var engineUp = false;
+      final p = CameraPlayer(
+        api: () => fakeApi(h264pcma),
+        createBackend: (mode, _) {
+          // The real factory reads engine.api/settings, which throw while the
+          // engine is stopped.
+          if (!engineUp) throw StateError('engine not running');
+          return FakeBackend(mode);
+        },
+      );
+      await p.play('tok');
+      expect(p.state.value.status, PlayerStatus.reconnecting);
+      engineUp = true;
+      p.engineRestarted();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(p.state.value.status, PlayerStatus.playing);
+      await p.dispose();
+    },
+  );
+
   group('StallWatchdog', () {
     test('fires only after no progress for stallAfter', () async {
       var now = DateTime(2026);

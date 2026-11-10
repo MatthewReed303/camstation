@@ -5,6 +5,7 @@ import 'dart:ui' show AppExitResponse;
 import 'package:camstation/app/providers.dart';
 import 'package:camstation/core/discovery/discovered_camera.dart';
 import 'package:camstation/core/engine/engine_manager.dart';
+import 'package:camstation/core/util/screen_awake.dart';
 import 'package:camstation/features/add_camera/add_camera_screen.dart';
 import 'package:camstation/features/camera_list/camera_list_screen.dart';
 import 'package:camstation/features/camera_settings/camera_settings_screen.dart';
@@ -112,6 +113,7 @@ class _CamStationAppState extends ConsumerState<CamStationApp> {
   @override
   Widget build(BuildContext context) {
     final settings = ref.watch(settingsProvider);
+    ScreenAwake.apply(settings.keepScreenOn);
     final seed = Color(settings.seedColor);
     return MaterialApp.router(
       title: 'CamStation',

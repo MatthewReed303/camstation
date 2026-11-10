@@ -99,6 +99,20 @@ class SettingsScreen extends ConsumerWidget {
               ],
             ),
           ),
+          ListTile(
+            title: const Text('Keep screen on'),
+            subtitle: const Text('Stop the screen dimming or locking'),
+            trailing: DropdownButton<KeepScreenOn>(
+              value: s.keepScreenOn,
+              onChanged: (v) => v == null
+                  ? null
+                  : notifier.update(s.copyWith(keepScreenOn: v)),
+              items: [
+                for (final k in KeepScreenOn.values)
+                  DropdownMenuItem(value: k, child: Text(k.label)),
+              ],
+            ),
+          ),
           SwitchListTile(
             title: const Text('Show stream details'),
             subtitle: const Text(

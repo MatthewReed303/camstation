@@ -106,6 +106,7 @@ void main() {
         'https://1.2.3.4/x.m3u8',
         'isapi://1.2.3.4/',
         'tapo://1.2.3.4',
+        'tcp://127.0.0.1:9100',
       ]) {
         expect(StreamSources.validateUrl(ok), isNull, reason: ok);
       }

@@ -132,6 +132,16 @@ String newCameraId() => randomToken();
 
 // --- Settings ------------------------------------------------------------
 
+/// When the screen must not dim or lock.
+enum KeepScreenOn {
+  watching('While watching'),
+  always('Always'),
+  off('Off');
+
+  const KeepScreenOn(this.label);
+  final String label;
+}
+
 class AppSettings {
   const AppSettings({
     this.defaultQuality = StreamQuality.main,
@@ -143,6 +153,7 @@ class AppSettings {
     this.gridHidden = const {},
     this.gridPaused = const {},
     this.showStreamInfo = false,
+    this.keepScreenOn = KeepScreenOn.watching,
   });
 
   factory AppSettings.fromJson(Map<String, Object?> j) => AppSettings(
@@ -164,6 +175,10 @@ class AppSettings {
     gridHidden: {...?(j['gridHidden'] as List?)?.cast<String>()},
     gridPaused: {...?(j['gridPaused'] as List?)?.cast<String>()},
     showStreamInfo: (j['showStreamInfo'] as bool?) ?? false,
+    keepScreenOn: KeepScreenOn.values.firstWhere(
+      (k) => k.name == j['keepScreenOn'],
+      orElse: () => KeepScreenOn.watching,
+    ),
   );
 
   /// Fallback stream for cameras that have never been viewed.
@@ -180,6 +195,7 @@ class AppSettings {
 
   /// Show the player/codec badge on live video (troubleshooting).
   final bool showStreamInfo;
+  final KeepScreenOn keepScreenOn;
 
   AppSettings copyWith({
     StreamQuality? defaultQuality,
@@ -191,6 +207,7 @@ class AppSettings {
     Set<String>? gridHidden,
     Set<String>? gridPaused,
     bool? showStreamInfo,
+    KeepScreenOn? keepScreenOn,
   }) => AppSettings(
     defaultQuality: defaultQuality ?? this.defaultQuality,
     preference: preference ?? this.preference,
@@ -201,6 +218,7 @@ class AppSettings {
     gridHidden: gridHidden ?? this.gridHidden,
     gridPaused: gridPaused ?? this.gridPaused,
     showStreamInfo: showStreamInfo ?? this.showStreamInfo,
+    keepScreenOn: keepScreenOn ?? this.keepScreenOn,
   );
 
   Map<String, Object?> toJson() => {
@@ -213,6 +231,7 @@ class AppSettings {
     'gridHidden': gridHidden.toList(),
     'gridPaused': gridPaused.toList(),
     'showStreamInfo': showStreamInfo,
+    'keepScreenOn': keepScreenOn.name,
   };
 }
 

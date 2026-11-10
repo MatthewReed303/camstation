@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:camstation/app/providers.dart';
 import 'package:camstation/core/cameras/camera.dart';
 import 'package:camstation/core/util/app_log.dart';
+import 'package:camstation/core/util/screen_awake.dart';
 import 'package:camstation/features/live_view/player_factory.dart';
 import 'package:camstation/features/live_view/player_status_overlay.dart';
 import 'package:camstation/features/live_view/thumbnails.dart';
@@ -14,7 +15,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:wakelock_plus/wakelock_plus.dart';
 
 class LiveViewScreen extends ConsumerStatefulWidget {
   const LiveViewScreen({required this.cameraId, super.key});
@@ -42,7 +42,7 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
   @override
   void initState() {
     super.initState();
-    unawaited(WakelockPlus.enable());
+    ScreenAwake.watching(on: true);
     _cam = ref.read(camerasProvider.notifier).byId(widget.cameraId);
     final cam = _cam;
     if (cam != null) {
@@ -243,7 +243,7 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
     _zoom.dispose();
     unawaited(_player.dispose());
     unawaited(_talk?.stop());
-    unawaited(WakelockPlus.disable());
+    ScreenAwake.watching(on: false);
     if (_fullscreen) {
       unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge));
     }

@@ -129,9 +129,13 @@ class CameraPlayer {
 
     Object? lastError;
     for (final mode in plan) {
-      final b = createBackend(mode, name);
       final t = Stopwatch()..start();
+      // Created inside the try: the factory reads the engine's current
+      // ports and throws while the engine is stopped/restarting (e.g. phone
+      // asleep). That must schedule a retry, not leave us stuck.
+      PlayerBackend? b;
       try {
+        b = createBackend(mode, name);
         await b.open();
       } on Object catch (e) {
         AppLog.add(
@@ -139,7 +143,7 @@ class CameraPlayer {
           '$name: ${mode.name} failed after ${t.elapsedMilliseconds} ms: $e',
         );
         lastError = e;
-        await b.dispose();
+        await b?.dispose();
         if (gen != _generation) return;
         continue;
       }
@@ -249,6 +253,14 @@ class CameraPlayer {
     }
   }
 
+  /// The engine restarted (new ports): anything we hold is dead, so
+  /// reconnect straight away instead of waiting for a stall or backoff.
+  void engineRestarted() {
+    if (_disposed || _stream == null) return;
+    AppLog.add('player', '$_stream: engine restarted, reconnecting');
+    unawaited(_connect(attempt: 0));
+  }
+
   /// Retry now (e.g. user tapped "retry").
   Future<void> reconnect() => _connect(attempt: 0);
 
@@ -261,8 +273,13 @@ class CameraPlayer {
     ),
   );
 
+  /// Called once on dispose (e.g. to remove listeners the factory added).
+  VoidCallback? onDispose;
+
   Future<void> dispose() async {
+    if (_disposed) return;
     _disposed = true;
+    onDispose?.call();
     _generation++;
     _retry?.cancel();
     _watchdog?.stop();

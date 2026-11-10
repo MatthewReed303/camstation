@@ -18,6 +18,7 @@ final class StreamSources {
     'rtsp', 'rtsps', 'rtspx', // RTSP (+TLS)
     'rtmp', 'rtmps', 'rtmpx', // RTMP (+TLS)
     'http', 'https', 'httpx', // MJPEG, JPEG, MP4, HLS, FLV, MPEG-TS
+    'tcp', // raw MPEG-TS/MJPEG over TCP (encoders, the demo camera)
     'isapi', // Hikvision ISAPI two-way audio
     'tapo', 'kasa', 'vigi', // TP-Link
     'dvrip', 'onvif',
