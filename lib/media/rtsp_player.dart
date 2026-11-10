@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -118,6 +119,9 @@ class RtspPlayer implements PlayerBackend {
 
   @override
   Future<Uint8List?> snapshot() async {
+    // fvp's snapshot never completes on desktop; the widget capture in
+    // CameraPlayer covers it there.
+    if (!(Platform.isAndroid || Platform.isIOS)) return null;
     final c = _c;
     if (c == null || !c.value.isInitialized || c.value.size.isEmpty) {
       return null;

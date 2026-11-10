@@ -17,10 +17,18 @@ class Go2rtcException implements Exception {
 
 /// One codec seen on a producer (camera connection).
 class CodecInfo {
-  const CodecInfo({required this.kind, required this.name, this.sampleRate});
+  const CodecInfo({
+    required this.kind,
+    required this.name,
+    this.sampleRate,
+    this.profile,
+  });
   final String kind; // 'video' | 'audio'
   final String name; // e.g. 'h264', 'pcm_alaw'
   final int? sampleRate;
+
+  /// H.264/H.265 profile as go2rtc reports it ("Main", "High", ...).
+  final String? profile;
 
   @override
   String toString() => sampleRate == null ? name : '$name/$sampleRate';
@@ -71,6 +79,7 @@ class ProducerStatus {
           kind: (c['codec_type'] as String?) ?? '',
           name: (c['codec_name'] as String?) ?? '?',
           sampleRate: c['sample_rate'] as int?,
+          profile: c['profile'] as String?,
         ),
       );
     }

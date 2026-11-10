@@ -85,6 +85,10 @@ class CameraPlayer {
   /// Forget cached codecs, e.g. after camera settings change.
   static void forgetCodecs(String streamName) => _codecCache.remove(streamName);
 
+  /// flutter_webrtc on Linux/Windows crashes on non-4:2:0 H.264.
+  static bool get webrtcCanDecodeH264High =>
+      Platform.isAndroid || Platform.isIOS || Platform.isMacOS;
+
   static bool get webrtcCanDecodeH265 =>
       Platform.isAndroid || Platform.isIOS || Platform.isMacOS;
 
@@ -136,6 +140,7 @@ class CameraPlayer {
       codecs: codecs,
       preference: preference,
       webrtcCanDecodeH265: webrtcCanDecodeH265,
+      webrtcCanDecodeH264High: webrtcCanDecodeH264High,
     );
 
     Object? lastError;

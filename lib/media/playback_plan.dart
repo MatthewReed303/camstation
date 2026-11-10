@@ -20,7 +20,19 @@ List<PlayerMode> planPlayback({
   required List<CodecInfo> codecs,
   required PlayerPreference preference,
   required bool webrtcCanDecodeH265,
+  bool webrtcCanDecodeH264High = true,
 }) {
+  // libwebrtc's desktop H.264 decoder crashes the whole app on non-4:2:0
+  // streams (High 10 / 4:2:2 / 4:4:4; go2rtc reports those as raw codes
+  // like "0xF4"). Normal Baseline/Main/High play fine. Never offer WebRTC
+  // for the exotic ones, whatever the preference.
+  final h264High = codecs.any(
+    (c) =>
+        c.name.toLowerCase() == 'h264' &&
+        (c.profile?.toLowerCase().startsWith('0x') ?? false),
+  );
+  if (h264High && !webrtcCanDecodeH264High) return const [PlayerMode.rtsp];
+
   switch (preference) {
     case PlayerPreference.webrtc:
       return const [PlayerMode.webrtc, PlayerMode.rtsp];

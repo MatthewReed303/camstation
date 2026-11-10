@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:camstation/core/engine/go2rtc_api.dart';
@@ -178,6 +179,11 @@ class WebRtcPlayer implements PlayerBackend {
 
   @override
   Future<Uint8List?> snapshot() async {
+    // flutter_webrtc's captureFrame crashes the whole app on Linux/Windows
+    // with HD frames: let CameraPlayer capture the rendered widget instead.
+    if (!(Platform.isAndroid || Platform.isIOS || Platform.isMacOS)) {
+      return null;
+    }
     final v = _video;
     if (v == null) return null;
     final buf = await v.captureFrame();

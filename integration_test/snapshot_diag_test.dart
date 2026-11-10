@@ -20,17 +20,27 @@ import 'test_env.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
-  final ip = testEnv('CAMSTATION_CAM_IP') ?? '';
-  final cam = Camera(
-    id: 'snapdiag',
-    name: 'snap',
-    host: ip,
-    source: testEnv('CAMSTATION_CAM_KIND') == 'dvrip'
-        ? SourceKind.dvrip
-        : SourceKind.onvif,
-    dvripMediaViaRtsp: testEnv('CAMSTATION_DVRIP_VIA_RTSP') == '1',
-    onvifPort: int.tryParse(testEnv('CAMSTATION_ONVIF_PORT') ?? '') ?? 80,
-  );
+  final demo = Platform.environment['CAMSTATION_DEMO_URL'];
+  final ip = demo != null ? '127.0.0.1' : (testEnv('CAMSTATION_CAM_IP') ?? '');
+  final cam = demo != null
+      ? Camera(
+          id: 'snapdiag',
+          name: 'demo',
+          host: '127.0.0.1',
+          source: SourceKind.url,
+          username: '',
+          urlMain: demo,
+        )
+      : Camera(
+          id: 'snapdiag',
+          name: 'snap',
+          host: ip,
+          source: testEnv('CAMSTATION_CAM_KIND') == 'dvrip'
+              ? SourceKind.dvrip
+              : SourceKind.onvif,
+          dvripMediaViaRtsp: testEnv('CAMSTATION_DVRIP_VIA_RTSP') == '1',
+          onvifPort: int.tryParse(testEnv('CAMSTATION_ONVIF_PORT') ?? '') ?? 80,
+        );
 
   for (final pref in [PlayerPreference.rtsp, PlayerPreference.webrtc]) {
     testWidgets('snapshot via ${pref.name}', (tester) async {

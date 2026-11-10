@@ -85,6 +85,19 @@ void main() {
     test('AAC anywhere → RTSP first (WebRTC would drop audio)', () {
       expect(plan([h264, aac], h265ok: true).first, PlayerMode.rtsp);
     });
+    test('exotic H.264 (4:4:4 etc.) on desktop → RTSP only; High is fine', () {
+      const p444 = CodecInfo(kind: 'video', name: 'h264', profile: '0xF4');
+      const high = CodecInfo(kind: 'video', name: 'h264', profile: 'High');
+      List<PlayerMode> plan(CodecInfo v) => planPlayback(
+        codecs: [v, pcma],
+        preference: PlayerPreference.webrtc,
+        webrtcCanDecodeH265: false,
+        webrtcCanDecodeH264High: false,
+      );
+      expect(plan(p444), [PlayerMode.rtsp]);
+      expect(plan(high).first, PlayerMode.webrtc);
+    });
+
     test('explicit preference wins', () {
       expect(
         planPlayback(

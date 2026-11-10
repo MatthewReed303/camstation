@@ -98,8 +98,15 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
   final TransformationController _zoom = TransformationController();
   bool get _zoomed => _zoom.value.getMaxScaleOnAxis() > 1.01;
 
-  /// Back to the camera list, whatever route led here.
-  void _close() => context.go('/');
+  void _close() {
+    // Back where the user came from (grid or list); the list if this view
+    // was opened directly.
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/');
+    }
+  }
 
   /// Not zoomed: a fast horizontal swipe moves to the previous/next camera.
   void _onInteractionEnd(ScaleEndDetails d) {

@@ -12,5 +12,5 @@ exec gst-launch-1.0 -q \
   ! clockoverlay halignment=left valignment=top font-desc="Sans 28" \
       time-format="Demo camera  %Y-%m-%d %H:%M:%S" \
   ! videoconvert ! x264enc tune=zerolatency speed-preset=ultrafast key-int-max=15 bitrate=1500 \
-  ! h264parse config-interval=-1 ! mpegtsmux \
+  ! video/x-h264,profile="${DEMO_PROFILE:-main}" ! h264parse config-interval=-1 ! mpegtsmux \
   ! tcpserversink host=0.0.0.0 port="$PORT" sync-method=latest-keyframe
