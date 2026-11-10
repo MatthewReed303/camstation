@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=CamStation
+Comment=Watch and manage your IP cameras
+Exec=camstation
+Icon=camstation
+Categories=AudioVideo;Video;Network;
+Terminal=false

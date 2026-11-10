@@ -1,0 +1,134 @@
+# Builds CamStation for Android, Linux and Windows and publishes a GitHub
+# Release when a tag v<version> is pushed (e.g. v0.3.0). Manual runs build
+# only (files are kept as workflow artifacts).
+#
+# Optional Android signing secrets (otherwise the debug key is used):
+#   ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  FLUTTER_VERSION: '3.47.9'
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        if: env.KEYSTORE_B64 != ''
+        run: |
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          echo "CAMSTATION_KEYSTORE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+      - name: Build APK
+        env:
+          CAMSTATION_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          CAMSTATION_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          CAMSTATION_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          scripts/fetch_go2rtc.sh android
+          flutter build apk --release --target-platform android-arm,android-arm64
+          mkdir -p dist
+          cp build/app/outputs/flutter-apk/app-release.apk "dist/CamStation-${GITHUB_REF_NAME#v}.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: dist/*
+
+  linux:
+    # Oldest supported Ubuntu: the AppImage then runs on older distros too.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev \
+            liblzma-dev libsecret-1-dev libfuse2 file
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Build
+        run: |
+          scripts/fetch_go2rtc.sh linux_amd64
+          flutter build linux --release
+      - name: AppImage
+        run: |
+          set -euo pipefail
+          V="${GITHUB_REF_NAME#v}"
+          APP=CamStation.AppDir
+          mkdir -p "$APP"
+          cp -r build/linux/x64/release/bundle/. "$APP/"
+          cp packaging/linux/camstation.desktop "$APP/"
+          cp linux/camstation.png "$APP/camstation.png"
+          install -m755 packaging/linux/AppRun "$APP/AppRun"
+          curl -fsSL -o appimagetool https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool
+          mkdir -p dist
+          ARCH=x86_64 ./appimagetool "$APP" "dist/CamStation-${V}-x86_64.AppImage"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: dist/*
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Build
+        shell: bash
+        run: |
+          scripts/fetch_go2rtc.sh windows_x64
+          flutter build windows --release
+      - name: Installer
+        shell: bash
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          "/c/Program Files (x86)/Inno Setup 6/ISCC.exe" //DAppVersion="$V" packaging/windows/camstation.iss
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/*
+
+  release:
+    needs: [android, linux, windows]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd dist
+          sha256sum * > SHA256SUMS
+          gh release create "$GITHUB_REF_NAME" * --repo "$GITHUB_REPOSITORY" \
+            --title "CamStation ${GITHUB_REF_NAME}" --generate-notes

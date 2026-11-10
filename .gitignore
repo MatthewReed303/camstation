@@ -1,0 +1,65 @@
+# --- Secrets / local config ---
+.env
+.env.*
+!.env.example
+*.jks
+*.keystore
+*.p12
+*.pem
+key.properties
+android/key.properties
+
+# --- Downloaded / reference material (never commit) ---
+engine_bin/
+reference/
+android/app/src/main/jniLibs/
+
+# --- Flutter / Dart ---
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+coverage/
+*.g.dart.tmp
+
+# --- Android ---
+android/.gradle/
+android/local.properties
+android/app/debug/
+android/app/profile/
+android/app/release/
+android/captures/
+*.apk
+*.aab
+*.idsig
+
+# --- iOS / macOS ---
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/ephemeral/
+macos/Pods/
+macos/Flutter/ephemeral/
+**/xcuserdata/
+DerivedData/
+
+# --- Desktop ephemeral ---
+linux/flutter/ephemeral/
+windows/flutter/ephemeral/
+
+# --- Packaging outputs ---
+dist/
+*.AppImage
+*.msix
+
+# --- IDE / OS ---
+.idea/
+*.iml
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+.DS_Store
+Thumbs.db
+*.log

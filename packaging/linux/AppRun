@@ -1,0 +1,4 @@
+#!/bin/sh
+# AppImage entry point: run the Flutter bundle from inside the image.
+HERE="$(dirname "$(readlink -f "$0")")"
+exec "$HERE/camstation" "$@"

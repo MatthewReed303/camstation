@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 280 280">
+  <title>CamStation</title>
+  <rect width="280" height="280" rx="64" fill="#111827"/>
+  <path d="M55 105 L55 55 L105 55 M175 55 L225 55 L225 105 M55 175 L55 225 L105 225 M175 225 L225 225 L225 175" fill="none" stroke="#FFFFFF" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="140" cy="140" r="42" fill="none" stroke="#FFFFFF" stroke-width="14"/>
+  <circle cx="140" cy="140" r="14" fill="#22C55E"/>
+</svg>
