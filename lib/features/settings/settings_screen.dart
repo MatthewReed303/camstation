@@ -117,6 +117,20 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
           SwitchListTile(
+            title: const Text('Boost camera sound'),
+            subtitle: const Text(
+              'Much louder, for hearing a camera from across the room',
+            ),
+            value: s.boostSound,
+            onChanged: (v) async {
+              await notifier.update(s.copyWith(boostSound: v));
+              // The engine reads it at start: restart it; open cameras
+              // reconnect by themselves.
+              await engine.stop();
+              await engine.ensureStarted();
+            },
+          ),
+          SwitchListTile(
             title: const Text('Show stream details'),
             subtitle: const Text(
               'Player and codecs on the video (for troubleshooting)',

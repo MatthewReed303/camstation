@@ -24,8 +24,8 @@ Networks of cameras you have added are always included in later scans.
 
 - Tap a camera to open it. **✕** takes you back to the list.
 - **HD / SD:** the full-quality stream, or a lighter one (good on mobile data or older phones).
-- **Volume:** mute, or set the volume. Camera microphones are quiet, so 100% boosts them a
-  lot; turn it down if a camera sounds distorted.
+- **Volume:** mute, or set the volume. Camera sound is boosted (see *Boost camera sound* in
+  Settings); turn it down if a camera sounds distorted.
 - **Snapshot:** saves a picture. On Android it goes to the app's folder; on desktop, to
   Downloads/CamStation.
 - **Full screen:** double-tap the video or use the full-screen button. The controls float over
@@ -97,6 +97,9 @@ What you can change depends on the camera:
 - **Default stream:** what cameras open with before you have watched them.
 - **Player:** Auto picks the best player for each camera. Choose WebRTC or RTSP only if
   asked to while troubleshooting.
+- **Boost camera sound:** makes camera audio much louder (on by default), for hearing a
+  machine, an alarm or a voice from across the room. Turn it off for cameras that are already
+  loud.
 - **Keep screen on:** *While watching* (the default), *Always* while the app is open, or
   *Off*.
 - **Show stream details:** shows the player and codecs on the video.

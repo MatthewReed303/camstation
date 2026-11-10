@@ -77,10 +77,10 @@ class CameraPlayer {
   Timer? _retry;
 
   /// Volume as the user sees it, 0–1 (shown as 0–100%). The backend gets
-  /// up to [maxGain]× that: camera audio (G.711 from a small mic) is quiet,
-  /// and other camera apps boost it a lot.
+  /// up to [maxGain]× that. The engine already makes G.711 audio loud
+  /// ("Boost camera sound"); the top of the slider drives it a bit harder.
   double _volume = 1;
-  static const maxGain = 5.0;
+  static const maxGain = 2.0;
   bool _muted = false;
   bool _disposed = false;
 

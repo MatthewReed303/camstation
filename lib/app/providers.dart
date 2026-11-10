@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:camstation/core/cameras/camera.dart';
 import 'package:camstation/core/cameras/camera_repository.dart';
 import 'package:camstation/core/cameras/stream_sources.dart';
+import 'package:camstation/core/engine/engine_binary.dart';
 import 'package:camstation/core/engine/engine_config.dart';
 import 'package:camstation/core/engine/engine_manager.dart';
 import 'package:camstation/media/camera_player.dart';
@@ -18,7 +19,14 @@ final supportDirProvider = Provider<Directory>(
 
 final engineProvider = Provider<EngineManager>((ref) {
   final dir = ref.watch(supportDirProvider);
-  final e = EngineManager(runtimeDir: Directory('${dir.path}/engine'));
+  final e = EngineManager(
+    runtimeDir: Directory('${dir.path}/engine'),
+    environment: () async => {
+      ...await EngineBinary.environment(),
+      // Louder camera sound: gain + limiter in the engine (CamStation build).
+      if (ref.read(settingsProvider).boostSound) 'GO2RTC_VOICE_BOOST': '20',
+    },
+  );
   ref.onDispose(e.dispose);
   return e;
 });
@@ -177,6 +185,7 @@ class AppSettings {
     this.gridPaused = const {},
     this.showStreamInfo = false,
     this.keepScreenOn = KeepScreenOn.watching,
+    this.boostSound = true,
   });
 
   factory AppSettings.fromJson(Map<String, Object?> j) => AppSettings(
@@ -202,6 +211,7 @@ class AppSettings {
       (k) => k.name == j['keepScreenOn'],
       orElse: () => KeepScreenOn.watching,
     ),
+    boostSound: (j['boostSound'] as bool?) ?? true,
   );
 
   /// Fallback stream for cameras that have never been viewed.
@@ -222,6 +232,10 @@ class AppSettings {
   final bool showStreamInfo;
   final KeepScreenOn keepScreenOn;
 
+  /// The engine amplifies G.711 camera audio (+20 dB with a limiter), for
+  /// hearing a camera from across the room.
+  final bool boostSound;
+
   AppSettings copyWith({
     StreamQuality? defaultQuality,
     PlayerPreference? preference,
@@ -233,6 +247,7 @@ class AppSettings {
     Set<String>? gridPaused,
     bool? showStreamInfo,
     KeepScreenOn? keepScreenOn,
+    bool? boostSound,
   }) => AppSettings(
     defaultQuality: defaultQuality ?? this.defaultQuality,
     preference: preference ?? this.preference,
@@ -244,6 +259,7 @@ class AppSettings {
     gridPaused: gridPaused ?? this.gridPaused,
     showStreamInfo: showStreamInfo ?? this.showStreamInfo,
     keepScreenOn: keepScreenOn ?? this.keepScreenOn,
+    boostSound: boostSound ?? this.boostSound,
   );
 
   Map<String, Object?> toJson() => {
@@ -257,6 +273,7 @@ class AppSettings {
     'gridPaused': gridPaused.toList(),
     'showStreamInfo': showStreamInfo,
     'keepScreenOn': keepScreenOn.name,
+    'boostSound': boostSound,
   };
 }
 

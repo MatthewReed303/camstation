@@ -41,6 +41,10 @@ class EngineManager {
   final Future<String> Function() _locate;
   final Future<Map<String, String>> Function() _environment;
 
+  /// The environment the next start will use (for tests).
+  @visibleForTesting
+  Future<Map<String, String>> environmentForTest() => _environment();
+
   final ValueNotifier<EngineState> _state = ValueNotifier(
     const EngineState(EngineStage.stopped),
   );

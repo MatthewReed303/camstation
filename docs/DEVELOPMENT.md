@@ -58,6 +58,9 @@ The branch adds:
 - **WebRTC on Android 11+.** A `GOOS=android` build, with the Android version passed in
   `ANDROID_VERSION` so interface listing works.
 - **The DVRIP main-stream H.264 fix** (upstream issue #2671).
+- **Voice boost.** With `GO2RTC_VOICE_BOOST=<dB>` the WebRTC and RTSP outputs amplify G.711
+  audio, with a peak limiter (`pkg/pcm/voice_boost.go`). CamStation sets it to 20 unless
+  *Boost camera sound* is off.
 - **A release workflow.** It builds without UPX (Android 8 can't run UPX-packed executables)
   and publishes SHA256SUMS.
 
