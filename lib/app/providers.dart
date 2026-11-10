@@ -286,7 +286,7 @@ class SettingsNotifier extends Notifier<AppSettings> {
 
   Future<void> update(AppSettings s) async {
     state = s;
-    await _file.writeAsString(jsonEncode(s.toJson()));
+    await writeFileAtomic(_file, jsonEncode(s.toJson()));
   }
 }
 
@@ -374,7 +374,8 @@ class ViewStateNotifier extends Notifier<Map<String, ViewState>> {
   ) async {
     final next = {...state, cameraId: f(state[cameraId] ?? const ViewState())};
     state = next;
-    await _file.writeAsString(
+    await writeFileAtomic(
+      _file,
       jsonEncode({for (final e in next.entries) e.key: e.value.toJson()}),
     );
   }
@@ -420,4 +421,21 @@ class ViewStateNotifier extends Notifier<Map<String, ViewState>> {
       fullscreen: fullscreen,
     );
   }
+}
+
+final _writeChains = <String, Future<void>>{};
+
+/// Writes [text] to [file] atomically (temp file + rename) and one write at
+/// a time per file, so a crash or quick successive changes can't leave a
+/// half-written settings file behind.
+Future<void> writeFileAtomic(File file, String text) {
+  final prev = _writeChains[file.path] ?? Future<void>.value();
+  final next = prev.catchError((Object _) {}).then((_) async {
+    await file.parent.create(recursive: true);
+    final tmp = File('${file.path}.tmp');
+    await tmp.writeAsString(text, flush: true);
+    await tmp.rename(file.path);
+  });
+  _writeChains[file.path] = next;
+  return next;
 }

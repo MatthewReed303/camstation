@@ -4,17 +4,16 @@ import 'package:camstation/app/providers.dart';
 import 'package:camstation/core/cameras/camera.dart';
 import 'package:camstation/core/util/screen_awake.dart';
 import 'package:camstation/features/live_view/player_factory.dart';
-import 'package:camstation/features/live_view/player_status_overlay.dart';
 import 'package:camstation/features/live_view/thumbnails.dart';
 import 'package:camstation/media/camera_player.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-/// Multi-camera grid on sub-streams.
-/// - 1–4 columns, scrolls; only tiles on screen exist, so only they play.
-/// - Tap a tile for its controls (pause, sound, open); double-tap opens it.
-/// - "Arrange" reorders cameras and chooses which appear.
+/// Several cameras at once, on their low-bandwidth sub-streams.
+/// - Tap a tile to open it; long-press for more (pause, sound, hide).
+/// - Each tile shows its name, a status dot and sound/pause buttons.
+/// - Only tiles on screen play, and the grid pauses while a camera is open.
 /// Columns, order, hidden and paused cameras are remembered.
 class GridScreen extends ConsumerStatefulWidget {
   const GridScreen({super.key});
@@ -27,10 +26,8 @@ class _GridScreenState extends ConsumerState<GridScreen> {
   /// The one tile whose sound is on (null = all muted).
   String? _audible;
 
-  AppSettings get _s => ref.read(settingsProvider);
-
-  Future<void> _set(AppSettings Function(AppSettings) f) =>
-      ref.read(settingsProvider.notifier).update(f(_s));
+  /// A live view is open on top: stop the tiles meanwhile.
+  bool _covered = false;
 
   @override
   void initState() {
@@ -44,11 +41,30 @@ class _GridScreenState extends ConsumerState<GridScreen> {
     super.dispose();
   }
 
+  AppSettings get _s => ref.read(settingsProvider);
+
+  Future<void> _set(AppSettings Function(AppSettings) f) =>
+      ref.read(settingsProvider.notifier).update(f(_s));
+
   Future<void> _togglePause(String id) => _set((s) {
     final p = {...s.gridPaused};
     if (!p.remove(id)) p.add(id);
     return s.copyWith(gridPaused: p);
   });
+
+  Future<void> _hide(String id) =>
+      _set((s) => s.copyWith(gridHidden: {...s.gridHidden, id}));
+
+  Future<void> _open(String id) async {
+    setState(() => _covered = true);
+    await context.push('/live/$id');
+    if (mounted) setState(() => _covered = false);
+  }
+
+  /// Phones (narrow side under 600 dp) get at most 2 columns: smaller tiles
+  /// are too small to see or tap.
+  int _maxColumns(BuildContext context) =>
+      MediaQuery.sizeOf(context).shortestSide < 600 ? 2 : 4;
 
   @override
   Widget build(BuildContext context) {
@@ -57,20 +73,19 @@ class _GridScreenState extends ConsumerState<GridScreen> {
     final visible = all
         .where((c) => !settings.gridHidden.contains(c.id))
         .toList();
-    final cols = settings.gridColumns;
+    final maxCols = _maxColumns(context);
+    final cols = settings.gridColumns.clamp(1, maxCols);
 
     return Scaffold(
-      backgroundColor: Colors.black,
       appBar: AppBar(
         title: const Text('Grid'),
         actions: [
           PopupMenuButton<int>(
             tooltip: 'Layout',
             icon: const Icon(Icons.view_module_outlined),
-            initialValue: cols,
             onSelected: (v) => _set((s) => s.copyWith(gridColumns: v)),
             itemBuilder: (_) => [
-              for (final n in [1, 2, 3, 4])
+              for (var n = 1; n <= maxCols; n++)
                 CheckedPopupMenuItem(
                   value: n,
                   checked: n == cols,
@@ -103,18 +118,24 @@ class _GridScreenState extends ConsumerState<GridScreen> {
         ],
       ),
       body: all.isEmpty
-          ? const _Message('No cameras yet')
+          ? const _Message(
+              icon: Icons.videocam_outlined,
+              text: 'No cameras yet. Add one from the camera list.',
+            )
           : visible.isEmpty
-          ? const _Message('All cameras are hidden. Use Arrange to show some.')
+          ? const _Message(
+              icon: Icons.visibility_off_outlined,
+              text: 'All cameras are hidden. Use Arrange to show some.',
+            )
           : GridView.builder(
-              padding: const EdgeInsets.all(2),
+              padding: const EdgeInsets.all(8),
               // No pre-building off-screen: off-screen tiles must not play.
               cacheExtent: 0,
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: cols,
                 childAspectRatio: 16 / 9,
-                mainAxisSpacing: 2,
-                crossAxisSpacing: 2,
+                mainAxisSpacing: 8,
+                crossAxisSpacing: 8,
               ),
               itemCount: visible.length,
               itemBuilder: (_, i) {
@@ -123,10 +144,14 @@ class _GridScreenState extends ConsumerState<GridScreen> {
                   key: ValueKey(c.id),
                   cam: c,
                   paused: settings.gridPaused.contains(c.id),
+                  active: !_covered,
                   audible: _audible == c.id,
+                  compact: cols >= 3,
+                  onOpen: () => _open(c.id),
                   onTogglePause: () => _togglePause(c.id),
                   onToggleSound: () =>
                       setState(() => _audible = _audible == c.id ? null : c.id),
+                  onHide: () => _hide(c.id),
                 );
               },
             ),
@@ -135,17 +160,21 @@ class _GridScreenState extends ConsumerState<GridScreen> {
 }
 
 class _Message extends StatelessWidget {
-  const _Message(this.text);
+  const _Message({required this.icon, required this.text});
+  final IconData icon;
   final String text;
 
   @override
   Widget build(BuildContext context) => Center(
     child: Padding(
       padding: const EdgeInsets.all(24),
-      child: Text(
-        text,
-        textAlign: TextAlign.center,
-        style: const TextStyle(color: Colors.white70),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 48),
+          const SizedBox(height: 12),
+          Text(text, textAlign: TextAlign.center),
+        ],
       ),
     ),
   );
@@ -155,17 +184,27 @@ class _GridTile extends ConsumerStatefulWidget {
   const _GridTile({
     required this.cam,
     required this.paused,
+    required this.active,
     required this.audible,
+    required this.compact,
+    required this.onOpen,
     required this.onTogglePause,
     required this.onToggleSound,
+    required this.onHide,
     super.key,
   });
 
   final Camera cam;
   final bool paused;
+
+  /// False while a live view covers the grid.
+  final bool active;
   final bool audible;
+  final bool compact;
+  final VoidCallback onOpen;
   final VoidCallback onTogglePause;
   final VoidCallback onToggleSound;
+  final VoidCallback onHide;
 
   @override
   ConsumerState<_GridTile> createState() => _GridTileState();
@@ -174,31 +213,29 @@ class _GridTile extends ConsumerStatefulWidget {
 class _GridTileState extends ConsumerState<_GridTile> {
   CameraPlayer? _player;
   ThumbnailKeeper? _thumbs;
-  bool _controls = false;
-  Timer? _hide;
+  int _gen = 0;
+  bool _registerFailed = false;
+
+  bool get _shouldPlay => !widget.paused && widget.active;
 
   @override
   void initState() {
     super.initState();
-    if (!widget.paused) unawaited(_start());
+    if (_shouldPlay) unawaited(_start());
   }
 
   @override
   void didUpdateWidget(_GridTile old) {
     super.didUpdateWidget(old);
-    if (old.paused != widget.paused) {
-      if (widget.paused) {
-        unawaited(_stop());
-      } else {
-        unawaited(_start());
-      }
-    }
+    final was = !old.paused && old.active;
+    if (was != _shouldPlay) unawaited(_shouldPlay ? _start() : _stop());
     if (old.audible != widget.audible) {
       unawaited(_player?.setMuted(muted: !widget.audible));
     }
   }
 
   Future<void> _start() async {
+    final gen = ++_gen;
     if (_player != null) return;
     final p = createCameraPlayer(ref);
     final t = ThumbnailKeeper(
@@ -213,48 +250,95 @@ class _GridTileState extends ConsumerState<_GridTile> {
       } else {
         t.onStopped();
       }
+      if (mounted) setState(() {});
     });
     setState(() {
       _player = p;
       _thumbs = t;
+      _registerFailed = false;
     });
     await p.setMuted(muted: !widget.audible);
     try {
       final name = await ref
           .read(streamRegistryProvider)
           .media(widget.cam, StreamQuality.sub);
-      if (mounted && identical(_player, p)) await p.play(name);
+      if (mounted && gen == _gen && identical(_player, p)) await p.play(name);
     } on Object {
-      // shown by the status overlay on the next state change
+      if (mounted && gen == _gen) setState(() => _registerFailed = true);
     }
   }
 
   Future<void> _stop() async {
+    final gen = ++_gen;
     final p = _player;
     final t = _thumbs;
     if (p == null) return;
-    await t?.grab(); // freshest image for the paused tile
-    t?.dispose();
+    // Detach first so a quick Play starts a fresh player.
     setState(() {
       _player = null;
       _thumbs = null;
     });
+    await t?.grab(); // freshest image for the paused tile
+    t?.dispose();
     await p.dispose();
+    if (mounted && gen == _gen) setState(() {});
   }
 
-  void _showControls() {
-    _hide?.cancel();
-    setState(() => _controls = !_controls);
-    if (_controls) {
-      _hide = Timer(const Duration(seconds: 4), () {
-        if (mounted) setState(() => _controls = false);
-      });
+  Future<void> _menu() async {
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (c) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              title: Text(
+                widget.cam.name,
+                style: Theme.of(c).textTheme.titleMedium,
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.open_in_full),
+              title: const Text('Open'),
+              onTap: () => Navigator.pop(c, 'open'),
+            ),
+            ListTile(
+              leading: Icon(widget.paused ? Icons.play_arrow : Icons.pause),
+              title: Text(widget.paused ? 'Play' : 'Pause'),
+              onTap: () => Navigator.pop(c, 'pause'),
+            ),
+            ListTile(
+              leading: Icon(
+                widget.audible ? Icons.volume_off : Icons.volume_up,
+              ),
+              title: Text(widget.audible ? 'Mute' : 'Listen to this camera'),
+              onTap: () => Navigator.pop(c, 'sound'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.visibility_off_outlined),
+              title: const Text('Hide from grid'),
+              onTap: () => Navigator.pop(c, 'hide'),
+            ),
+          ],
+        ),
+      ),
+    );
+    switch (choice) {
+      case 'open':
+        widget.onOpen();
+      case 'pause':
+        widget.onTogglePause();
+      case 'sound':
+        widget.onToggleSound();
+      case 'hide':
+        widget.onHide();
     }
   }
 
   @override
   void dispose() {
-    _hide?.cancel();
+    _gen++;
     _thumbs?.dispose();
     unawaited(_player?.dispose());
     super.dispose();
@@ -263,86 +347,179 @@ class _GridTileState extends ConsumerState<_GridTile> {
   @override
   Widget build(BuildContext context) {
     final p = _player;
+    final status = p?.state.value.status;
+    final playing = status == PlayerStatus.playing;
     final thumb = ref.watch(thumbnailProvider(widget.cam.id)).value;
-    return GestureDetector(
-      onTap: _showControls,
-      onDoubleTap: () => context.push('/live/${widget.cam.id}'),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          const ColoredBox(color: Colors.black),
-          if (thumb != null && (p == null || widget.paused))
-            Image.file(
-              thumb,
-              fit: BoxFit.cover,
-              color: Colors.black38,
-              colorBlendMode: BlendMode.darken,
-            ),
-          if (p != null) p.view(fit: BoxFit.cover),
-          if (p != null) PlayerStatusOverlay(player: p, compact: true),
-          if (widget.paused)
-            Center(
-              child: IconButton.filledTonal(
-                iconSize: 32,
-                tooltip: 'Play',
-                onPressed: widget.onTogglePause,
-                icon: const Icon(Icons.play_arrow),
-              ),
-            ),
-          Positioned(
-            left: 6,
-            bottom: 4,
-            right: 6,
-            child: Row(
+    final (dot, label) = widget.paused
+        ? (Colors.grey, 'Paused')
+        : _registerFailed || status == PlayerStatus.error
+        ? (Colors.redAccent, 'Offline')
+        : playing
+        ? (Colors.greenAccent, 'Live')
+        : (Colors.amber, 'Connecting');
+
+    return Semantics(
+      button: true,
+      label: '${widget.cam.name}, $label',
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Material(
+          color: Colors.black,
+          child: InkWell(
+            onTap: widget.onOpen,
+            onLongPress: _menu,
+            child: Stack(
+              fit: StackFit.expand,
               children: [
-                if (widget.audible)
-                  const Padding(
-                    padding: EdgeInsets.only(right: 4),
-                    child: Icon(Icons.volume_up, size: 14, color: Colors.white),
-                  ),
-                Expanded(
-                  child: Text(
-                    widget.cam.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      shadows: [Shadow(blurRadius: 3)],
+                // Last image until the live picture arrives (never bare black).
+                if (thumb != null && !playing)
+                  Image.file(
+                    thumb,
+                    fit: BoxFit.cover,
+                    color: widget.paused ? Colors.black45 : null,
+                    colorBlendMode: BlendMode.darken,
+                  )
+                else if (!playing)
+                  const Center(
+                    child: Icon(
+                      Icons.videocam,
+                      color: Colors.white24,
+                      size: 40,
                     ),
+                  ),
+                if (p != null) p.view(fit: BoxFit.cover),
+                if (!widget.paused && !playing && label == 'Connecting')
+                  const Center(
+                    child: SizedBox.square(
+                      dimension: 28,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 3,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                if (label == 'Offline')
+                  Center(
+                    child: FilledButton.tonalIcon(
+                      onPressed: () {
+                        if (p != null) {
+                          unawaited(p.reconnect());
+                        } else {
+                          unawaited(_start());
+                        }
+                      },
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Retry'),
+                    ),
+                  ),
+                if (widget.paused)
+                  Center(
+                    child: IconButton.filled(
+                      iconSize: 32,
+                      tooltip: 'Play',
+                      onPressed: widget.onTogglePause,
+                      icon: const Icon(Icons.play_arrow),
+                    ),
+                  ),
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: _TileBar(
+                    name: widget.cam.name,
+                    dot: dot,
+                    status: label,
+                    compact: widget.compact,
+                    audible: widget.audible,
+                    paused: widget.paused,
+                    onSound: widget.onToggleSound,
+                    onPause: widget.onTogglePause,
                   ),
                 ),
               ],
             ),
           ),
-          if (_controls && !widget.paused)
-            ColoredBox(
-              color: Colors.black45,
-              child: Center(
-                child: Wrap(
-                  spacing: 8,
-                  children: [
-                    IconButton.filledTonal(
-                      tooltip: 'Pause',
-                      onPressed: widget.onTogglePause,
-                      icon: const Icon(Icons.pause),
-                    ),
-                    IconButton.filledTonal(
-                      tooltip: widget.audible ? 'Mute' : 'Sound on',
-                      onPressed: widget.onToggleSound,
-                      icon: Icon(
-                        widget.audible ? Icons.volume_off : Icons.volume_up,
-                      ),
-                    ),
-                    IconButton.filledTonal(
-                      tooltip: 'Open',
-                      onPressed: () => context.push('/live/${widget.cam.id}'),
-                      icon: const Icon(Icons.open_in_full),
-                    ),
-                  ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Name, status and the two tile actions on a dark gradient: always
+/// readable over any picture, in light and dark themes.
+class _TileBar extends StatelessWidget {
+  const _TileBar({
+    required this.name,
+    required this.dot,
+    required this.status,
+    required this.compact,
+    required this.audible,
+    required this.paused,
+    required this.onSound,
+    required this.onPause,
+  });
+
+  final String name;
+  final Color dot;
+  final String status;
+  final bool compact;
+  final bool audible;
+  final bool paused;
+  final VoidCallback onSound;
+  final VoidCallback onPause;
+
+  @override
+  Widget build(BuildContext context) {
+    const white = Colors.white;
+    final iconSize = compact ? 18.0 : 22.0;
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.bottomCenter,
+          end: Alignment.topCenter,
+          colors: [Colors.black87, Colors.transparent],
+        ),
+      ),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(10, compact ? 10 : 16, 2, 2),
+        child: Row(
+          children: [
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: white,
+                  fontWeight: FontWeight.w600,
+                  fontSize: compact ? 12 : 14,
                 ),
               ),
             ),
-        ],
+            IconButton(
+              tooltip: audible ? 'Mute' : 'Listen',
+              iconSize: iconSize,
+              visualDensity: VisualDensity.compact,
+              color: white,
+              onPressed: onSound,
+              icon: Icon(audible ? Icons.volume_up : Icons.volume_off),
+            ),
+            IconButton(
+              tooltip: paused ? 'Play' : 'Pause',
+              iconSize: iconSize,
+              visualDensity: VisualDensity.compact,
+              color: white,
+              onPressed: onPause,
+              icon: Icon(paused ? Icons.play_arrow : Icons.pause),
+            ),
+          ],
+        ),
       ),
     );
   }
