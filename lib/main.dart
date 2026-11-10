@@ -3,10 +3,12 @@ import 'dart:io';
 
 import 'package:camstation/app/app.dart';
 import 'package:camstation/app/providers.dart';
+import 'package:camstation/core/util/app_log.dart';
 import 'package:camstation/media/rtsp_player.dart';
 import 'package:camstation/media/webrtc_player.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -14,6 +16,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   RtspPlayer.registerBackend();
   await WebRtcPlayer.configureAudio();
+  unawaited(_logDevice());
   _registerThirdPartyLicences();
   final dir = await getApplicationSupportDirectory();
   final container = ProviderContainer(
@@ -57,6 +60,21 @@ void _stopEngineOnSignals(ProviderContainer container) {
 }
 
 /// Licences for bundled components that are not Dart packages.
+/// Android: phone model and its video decoders' limits, into the
+/// diagnostics log (why a 4K stream won't play on an older phone).
+Future<void> _logDevice() async {
+  if (!Platform.isAndroid) return;
+  try {
+    final info = await const MethodChannel('camstation/platform')
+        .invokeMethod<String>('deviceInfo');
+    for (final line in (info ?? '').split('\n')) {
+      if (line.isNotEmpty) AppLog.add('device', line);
+    }
+  } on Object {
+    // diagnostics only
+  }
+}
+
 void _registerThirdPartyLicences() {
   LicenseRegistry.addLicense(() async* {
     yield const LicenseEntryWithLineBreaks(

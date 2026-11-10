@@ -144,11 +144,23 @@ class WebRtcPlayer implements PlayerBackend {
     // Ready = the first video frame is decoded. That is what the user sees,
     // and it doesn't depend on connection-state events, which flutter_webrtc
     // desktop doesn't reliably deliver.
-    final deadline = DateTime.now().add(const Duration(seconds: 10));
+    final start = DateTime.now();
+    final deadline = start.add(const Duration(seconds: 10));
     while (DateTime.now().isBefore(deadline)) {
       if (_disposed) throw StateError('closed while opening');
       if (failed) throw StateError('WebRTC connection failed');
-      if (((await stats()).framesDecoded ?? 0) > 0) return;
+      final s = await stats();
+      if ((s.framesDecoded ?? 0) > 0) return;
+      // Video arriving but nothing decoded: this device's decoder can't
+      // handle the stream (e.g. 4K on an older phone). Hand over to the
+      // other player now instead of waiting out the 10 s.
+      if (DateTime.now().difference(start) > const Duration(seconds: 4) &&
+          (s.bytesReceived ?? 0) > 1000000) {
+        throw StateError(
+          'WebRTC: video arrives (${s.bytesReceived} bytes) but this device '
+          'cannot decode it',
+        );
+      }
       await Future<void>.delayed(const Duration(milliseconds: 100));
     }
     throw TimeoutException('WebRTC: no video within 10 s');

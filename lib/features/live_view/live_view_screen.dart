@@ -72,9 +72,24 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
     unawaited(_open());
   }
 
+  /// HD that hasn't started after a while: likely too big for this device
+  /// (e.g. a 4K stream on an older phone). Offer SD instead of an endless
+  /// spinner.
+  Timer? _hdTimer;
+  bool _hdStuck = false;
+
   Future<void> _open() async {
     final cam = _cam;
     if (cam == null) return;
+    _hdTimer?.cancel();
+    if (_hdStuck) setState(() => _hdStuck = false);
+    if (_quality == StreamQuality.main) {
+      _hdTimer = Timer(const Duration(seconds: 20), () {
+        if (mounted && _player.state.value.status != PlayerStatus.playing) {
+          setState(() => _hdStuck = true);
+        }
+      });
+    }
     try {
       final name = await ref.read(streamRegistryProvider).media(cam, _quality);
       if (mounted) await _player.play(name);
@@ -85,7 +100,13 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
 
   void _onPlayerState() {
     if (_player.state.value.status == PlayerStatus.playing) {
-      if (_error != null && mounted) setState(() => _error = null);
+      _hdTimer?.cancel();
+      if ((_error != null || _hdStuck) && mounted) {
+        setState(() {
+          _error = null;
+          _hdStuck = false;
+        });
+      }
       _thumbs.onPlaying();
     } else {
       _thumbs.onStopped();
@@ -316,6 +337,7 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
     unawaited(_talk?.stop());
     ScreenAwake.watching(on: false);
     _hideControls?.cancel();
+    _hdTimer?.cancel();
     _openViews--;
     if (_openViews == 0) {
       // Back to normal bars and rotation for the rest of the app.
@@ -377,7 +399,15 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
                   ),
                 ),
               ),
-            if (_error != null)
+            if (_hdStuck)
+              Center(
+                child: _HdStuckCard(
+                  onUseSd: () => _switchQuality(StreamQuality.sub),
+                  onSettings: () =>
+                      context.push('/camera/${widget.cameraId}/settings'),
+                ),
+              )
+            else if (_error != null)
               Center(
                 child: Text(
                   _error!,
@@ -599,6 +629,49 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
           ],
         ),
       ],
+    ),
+  );
+}
+
+class _HdStuckCard extends StatelessWidget {
+  const _HdStuckCard({required this.onUseSd, required this.onSettings});
+
+  final VoidCallback onUseSd;
+  final VoidCallback onSettings;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    margin: const EdgeInsets.all(16),
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'HD isn\'t playing on this device',
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'The camera\'s HD stream may be too big for it (for example 4K). '
+            'Use SD, or lower the HD resolution in camera settings.',
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(
+                onPressed: onSettings,
+                child: const Text('Camera settings'),
+              ),
+              FilledButton.tonal(
+                onPressed: onUseSd,
+                child: const Text('Use SD'),
+              ),
+            ],
+          ),
+        ],
+      ),
     ),
   );
 }

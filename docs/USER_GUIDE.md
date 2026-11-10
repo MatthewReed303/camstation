@@ -109,5 +109,6 @@ What you can change depends on the camera:
 | "Wrong username or password" | Check the camera's login. Some cameras lock you out for a few minutes after several wrong tries |
 | Video but no sound | In **Camera settings → Video**, turn **Audio** on for the stream |
 | Slow to start | Lower the keyframe interval in Camera settings (1–2 s) |
+| HD won't play on an older phone | The HD stream is probably 4K. Use **SD**, or set the HD stream to 1080P in **Camera settings → Video** |
 | Talk says the camera is busy | Close other apps or devices that are talking to the camera, then try again |
 | Anything else | **Settings → Media engine and diagnostics → Copy**, then include the log when you report the problem |

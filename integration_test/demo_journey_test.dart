@@ -210,6 +210,43 @@ void main() {
     await settle(1500);
     await shot('list_dark');
 
+    // 7. HD that never starts (dead main stream, working sub): after a
+    // while the view offers SD instead of spinning forever.
+    final deadUrl = demoUrl.replaceFirst(RegExp(r':\d+$'), ':9199');
+    await tap(find.text('Add camera'), 2500);
+    await tap(find.text('Enter details manually'), 1000);
+    await tap(find.text('Auto-detect (recommended)'), 600);
+    await tap(find.textContaining('Other stream URL').last, 800);
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Name'),
+      'Garage',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Main stream URL'),
+      deadUrl,
+    );
+    await tester.enterText(
+      find.widgetWithText(
+        TextFormField,
+        'Sub-stream URL (optional, used by the grid)',
+      ),
+      demoUrl,
+    );
+    FocusManager.instance.primaryFocus?.unfocus();
+    await settle(400);
+    await tap(find.byTooltip('Save'), 1500);
+    // Third card: below the fold, so scroll the list up first.
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, -600));
+    await settle(800);
+    await tap(find.text('Garage'), 3000);
+    await tap(find.text('HD'), 23000);
+    expect(find.text('Use SD'), findsOneWidget, reason: 'HD hint shown');
+    await shot('hd_stuck');
+    await tap(find.text('Use SD'), 5000);
+    expect(find.text('Use SD'), findsNothing);
+    await shot('hd_stuck_sd');
+    await tap(find.byTooltip('Close'), 1500);
+
     await tester.pumpWidget(const SizedBox());
     await settle(1000);
     await engine.stop();
